@@ -1,6 +1,6 @@
 # TranslatePlace
 
-Soukromé rozšíření pro GNOME Shell 50. Zkratka **Super+Shift+E** vezme právě označený text, uloží originál do historie, přeloží ho přes místní `translation-api.service` a vloží překlad na místo výběru. Výchozí směr je čeština → angličtina. Ikona v horní liště ukazuje poslední překlady a otevírá nastavení. V nastavení lze změnit směr, vypnout automatické vložení a nastavit délku historie (1–200, výchozí 50).
+Soukromé rozšíření pro GNOME Shell 50. Zkratka **Super+Shift+E** vezme právě označený text, uloží originál do historie, přeloží ho přes místní `translation-api.service` a vloží překlad na místo výběru. Výchozí směr je čeština → angličtina. Ikona v horní liště ukazuje poslední překlady; po kliknutí na záznam otevře původní text i překlad v omezeném okně. V nabídce je také nastavení. V nastavení lze změnit směr, vypnout automatické vložení a nastavit délku historie (1–200, výchozí 50).
 
 ## Předpoklady
 
