@@ -1,0 +1,7 @@
+{
+  "uuid": "translateplace@tomasmark79",
+  "name": "TranslatePlace",
+  "description": "Překlad označeného textu v GNOME přes místní translation-api.service",
+  "shell-version": ["50"],
+  "settings-schema": "org.gnome.shell.extensions.translateplace"
+}

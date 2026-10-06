@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.translateplace" path="/org/gnome/shell/extensions/translateplace/">
+    <key name="translate-shortcut" type="as">
+      <default>['&lt;Super&gt;&lt;Shift&gt;e']</default>
+      <summary>Zkratka pro překlad označeného textu</summary>
+    </key>
+    <key name="direction" type="s">
+      <default>'cs-en'</default>
+      <summary>Výchozí směr překladu</summary>
+    </key>
+    <key name="history-limit" type="i">
+      <default>50</default>
+      <range min="1" max="200"/>
+      <summary>Počet záznamů historie</summary>
+    </key>
+    <key name="auto-paste" type="b">
+      <default>true</default>
+      <summary>Nahradit označený text překladem</summary>
+    </key>
+  </schema>
+</schemalist>
