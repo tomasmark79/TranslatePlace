@@ -114,11 +114,24 @@ export default class TranslatePlace extends Extension {
         this._indicator = new PanelMenu.Button(0.0, 'TranslatePlace');
         this._indicator.add_child(new St.Icon({icon_name: 'preferences-desktop-locale-symbolic', style_class: 'system-status-icon'}));
         Main.panel.addToStatusArea(this.uuid, this._indicator);
-        this._ready = this._history.load(this._cancellable).then(() => this._updateMenu());
+        const cancellable = this._cancellable;
+        this._ready = this._history.load(cancellable).then(() => {
+            if (!cancellable.is_cancelled())
+                this._updateMenu();
+        }).catch(error => {
+            if (!cancellable.is_cancelled()) {
+                this._loadError = error;
+                Main.notify('TranslatePlace', 'Nepodařilo se načíst historii překladů.');
+                logError(error, '[TranslatePlace] historie');
+            }
+        });
         this._limitHandler = this._settings.connect('changed::history-limit', () => {
             this._history.entries.length = Math.min(this._history.entries.length, this._settings.get_int('history-limit'));
             this._history.save(this._settings.get_int('history-limit'), this._cancellable)
-                .catch(error => logError(error, '[TranslatePlace] ukládání historie'));
+                .catch(error => {
+                    if (!cancellable.is_cancelled())
+                        logError(error, '[TranslatePlace] ukládání historie');
+                });
             this._updateMenu();
         });
         Main.wm.addKeybinding(SHORTCUT, this._settings, Meta.KeyBindingFlags.NONE,
@@ -200,13 +213,14 @@ export default class TranslatePlace extends Extension {
         if (this._busy)
             return;
         this._busy = true;
+        const cancellable = this._cancellable;
         this._translate().catch(error => {
-            if (!this._cancellable?.is_cancelled()) {
+            if (!cancellable.is_cancelled()) {
                 Main.notify('TranslatePlace', error.message);
                 logError(error, '[TranslatePlace] překlad');
             }
         }).finally(() => {
-            if (!this._cancellable?.is_cancelled())
+            if (!cancellable.is_cancelled())
                 this._busy = false;
         });
     }
@@ -214,10 +228,16 @@ export default class TranslatePlace extends Extension {
     async _translate() {
         const cancellable = this._cancellable;
         await this._ready;
+        if (cancellable.is_cancelled())
+            return;
+        if (this._loadError)
+            throw new Error('Historie je nedostupná; překlad je vypnutý, aby se neztratil originál.');
         await pause(250, cancellable); // Nejprve se musí uvolnit Super+Shift+E.
         const window = global.display.focus_window;
         if (!window)
             throw new Error('Nejprve označte text v okně aplikace.');
+        if (/(terminal|console|kitty|alacritty|wezterm|foot|ghostty)/i.test(window.get_wm_class() ?? ''))
+            throw new Error('V terminálu by Ctrl+C mohlo přerušit běžící příkaz.');
         const original = await readFreshSelection(this._device, cancellable);
         if (cancellable.is_cancelled())
             return;

@@ -24,6 +24,6 @@ Před požadavkem na API se originál zapisuje do `~/.local/state/translateplace
 
 URL, emoji, bloky kódu, HTML značky a celé Markdown odkazy či zvýrazněné úseky se při překladu maskují. Model ale může maskované části vypustit nebo přesunout. Překlad se i v takovém případě vloží a historie upozorní, které části chybí či se změnily; originál zůstane uložený. Formátování uložené *mimo text* (například styly ve WYSIWYG editoru) se běžným vložením jako prostý text nemusí zachovat.
 
-Načtení a vložení probíhá pomocí běžných kláves `Ctrl+C` a `Ctrl+V` uvnitř GNOME Shell. Funguje v editovatelných polích, která tyto zkratky podporují a ponechávají výběr; v terminálech nebo zvláštních editorech může být nutné překlad z historie zkopírovat ručně. Rozšíření vloží překlad jen tehdy, pokud je stále aktivní stejné okno a schránka od načtení výběru zůstala stejná. Po úspěšném vložení je překlad ve schránce.
+Načtení a vložení probíhá pomocí běžných kláves `Ctrl+C` a `Ctrl+V` uvnitř GNOME Shell. Funguje v editovatelných polích, která tyto zkratky podporují a ponechávají výběr. V terminálech se zkratka z bezpečnostních důvodů neprovede: `Ctrl+C` by mohlo přerušit běžící příkaz. Ve zvláštních editorech může být nutné překlad z historie zkopírovat ručně. Rozšíření vloží překlad jen tehdy, pokud je stále aktivní stejné okno a schránka od načtení výběru zůstala stejná. Po úspěšném vložení je překlad ve schránce.
 
 Projekt se zatím nezveřejňuje.
