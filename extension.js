@@ -81,12 +81,16 @@ function readFreshSelection(device, cancellable) {
         const handler = selection.connect('owner-changed', (_selection, type) => {
             if (type !== Meta.SelectionType.SELECTION_CLIPBOARD)
                 return;
-            readClipboard(cancellable).then(text => {
-                if (!text)
-                    finish(new Error('Označený text je prázdný.'));
-                else
-                    finish(null, text);
-            }).catch(error => finish(error));
+            (async () => {
+                for (let attempt = 0; attempt < 12 && !done; attempt++) {
+                    await pause(75, cancellable);
+                    const text = await readClipboard(cancellable);
+                    if (text) {
+                        finish(null, text);
+                        return;
+                    }
+                }
+            })().catch(error => finish(error));
         });
         const cancelHandler = cancellable.connect(() => finish(new Error('Zrušeno')));
         timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, COPY_WAIT_MS, () => {
