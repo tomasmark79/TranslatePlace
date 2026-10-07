@@ -5,5 +5,9 @@
   "shell-version": [
     "50"
   ],
-  "settings-schema": "org.gnome.shell.extensions.translateplace"
+  "url": "https://github.com/tomasmark79/TranslatePlace",
+  "settings-schema": "org.gnome.shell.extensions.translateplace",
+  "donations": {
+    "paypal": "TomasMark"
+  }
 }

@@ -1,6 +1,6 @@
 # TranslatePlace
 
-A private GNOME Shell extension that translates selected text through your own
+A GNOME Shell extension that translates selected text through your own
 local translation API and optionally pastes the result over the selection.
 The interface is Czech; the default direction is Czech → English.
 
@@ -112,8 +112,8 @@ ZIP timestamps and compression may differ. A metadata update also counts as a di
 The package contains runtime JavaScript, metadata and the XML schema; GNOME compiles
 the schema during installation. The private server and tests are not bundled.
 
-`require_project_url=false` explicitly supports this private project without a public
-URL. Its metadata is not intended for submission to extensions.gnome.org.
+Project: [TranslatePlace](https://github.com/tomasmark79/TranslatePlace).
+The API backend remains private and is not included in the public repository.
 
 For runtime changes, check text replacement, automatic paste disabled, history,
 long-text dialogs, API errors and disable/enable during a pending translation in
@@ -125,7 +125,10 @@ If the API cannot be reached, check the local health endpoint and
 `translation-api.service`. If automatic paste is skipped, check window focus,
 clipboard changes and editor shortcut support; the result remains in history.
 Start a fresh GNOME session if an installed code change does not appear.
+Report problems in the [issue tracker](https://github.com/tomasmark79/TranslatePlace/issues).
 
 ## License
 
-This private project currently has no project-wide LICENSE file.
+No project-wide LICENSE file is currently provided.
+
+[GitHub](https://github.com/tomasmark79/TranslatePlace) · [Donate via PayPal](https://paypal.me/TomasMark)

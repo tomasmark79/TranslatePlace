@@ -10,7 +10,7 @@ extra_sources=()
 package_license=false
 package_compiled_schemas=false
 # GNOME publication requires a project URL; preserve legacy local metadata only explicitly.
-require_project_url=false
+require_project_url=true
 install_extension=false
 check_only=false
 reference_zip=''
