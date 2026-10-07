@@ -1,7 +1,9 @@
 {
   "uuid": "translateplace@tomasmark79",
   "name": "TranslatePlace",
-  "description": "Překlad označeného textu v GNOME přes místní translation-api.service",
-  "shell-version": ["50"],
+  "description": "Translates selected text through a private local API and optionally replaces the selection. Reads and writes the clipboard when the translation shortcut is used; saves originals and translations in local history. Requires a compatible translation server at http://127.0.0.1:5001.",
+  "shell-version": [
+    "50"
+  ],
   "settings-schema": "org.gnome.shell.extensions.translateplace"
 }

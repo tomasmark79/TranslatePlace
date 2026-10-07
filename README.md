@@ -1,29 +1,131 @@
 # TranslatePlace
 
-Soukromé rozšíření pro GNOME Shell 50. Zkratka **Super+Shift+E** vezme právě označený text, uloží originál do historie, přeloží ho přes místní `translation-api.service` a vloží překlad na místo výběru. Výchozí směr je čeština → angličtina. Ikona v horní liště ukazuje poslední překlady; po kliknutí na záznam otevře původní text i překlad v omezeném okně. V nabídce je také nastavení. V nastavení lze změnit směr, vypnout automatické vložení a nastavit délku historie (1–200, výchozí 50).
+A private GNOME Shell extension that translates selected text through your own
+local translation API and optionally pastes the result over the selection.
+The interface is Czech; the default direction is Czech → English.
 
-## Předpoklady
+## Features
 
-Rozšíření předpokládá API pouze na `http://127.0.0.1:5001`. Služba běží v soukromé konfiguraci nixon a používá Ollamu; zdrojový kód serveru není součástí tohoto projektu. Potřebné rozhraní:
+- Translate the selection with **Super + Shift + E**
+- Configurable translation direction and shortcut
+- Optional automatic replacement of the selected text
+- Local history with the original text and translation
+- Short history previews in the panel menu and a bounded dialog for full text
+- Configurable history length: 1–200 entries, default 50
 
-- `POST /translate` s JSON `{ "q": "text", "source": "cs", "target": "en" }` vrací HTTP 202 a `{ "jobId": "32 hex znaků", "status": "pending" }`.
-- `GET /translations/<jobId>` vrací `status: pending`, `done` s `translatedText`, nebo `failed` s `error`.
-- Maximální vstup je 10 000 znaků. Lokální server má být dostupný pouze na loopbacku.
+## Requirements
 
-Před instalací ověřte API příkazem `curl http://127.0.0.1:5001/health`.
+Declared GNOME Shell version: **50**, as listed in `metadata.json`.
+Runtime requires GJS, libsoup 3, libadwaita and the private translation API.
 
-## Sestavení a instalace
+The endpoint is fixed in `api.js` at `http://127.0.0.1:5001`; Preferences does not
+provide a server URL setting. The backend is provided by `translation-api.service`
+in the owner's private Nixon configuration and uses Ollama. Its source code and
+installation are outside this project. Keep the server bound to loopback.
 
-Spusťte `bash build.sh`; vytvoří `dist/translateplace@tomasmark79.shell-extension.zip`. Instalace do uživatelského profilu: `gnome-extensions install --force dist/translateplace@tomasmark79.shell-extension.zip`.
+### API contract
 
-GNOME Shell musí nové rozšíření načíst (na Waylandu zpravidla po novém přihlášení); pak ho lze zapnout přes `gnome-extensions enable translateplace@tomasmark79`.
+- `POST /translate` accepts JSON `{"q": "text", "source": "cs", "target": "en"}`.
+  The server responds with HTTP 202 and `{"jobId": "<32 lowercase hex characters>", "status": "pending"}`.
+- `GET /translations/<jobId>` returns `{"status": "pending"}`, or
+  `{"status": "done", "translatedText": "..."}`, or `{"status": "failed", "error": "..."}`.
+- Maximum input: 10,000 characters.
 
-## Bezpečnost textu
+Check that the private server is running before using the extension:
 
-Před požadavkem na API se originál zapisuje do `~/.local/state/translateplace/history.json` (oprávnění 0600). Při chybě zůstává uložen. Historie obsahuje soukromý obsah označeného textu, takže tento soubor nezálohujte ani nesdílejte bez rozmyslu.
+```bash
+curl http://127.0.0.1:5001/health
+```
 
-URL, emoji, bloky kódu, HTML značky a celé Markdown odkazy či zvýrazněné úseky se při překladu maskují. Model ale může maskované části vypustit nebo přesunout. Překlad se i v takovém případě vloží a historie upozorní, které části chybí či se změnily; originál zůstane uložený. Formátování uložené *mimo text* (například styly ve WYSIWYG editoru) se běžným vložením jako prostý text nemusí zachovat.
+Build tools: Bash, Python 3, Node.js (syntax checks), GJS (text protection tests),
+zip and `glib-compile-schemas`. Local installation also requires `gnome-extensions`.
+Building does not require a running translation server.
 
-Načtení a vložení probíhá pomocí běžných kláves `Ctrl+C` a `Ctrl+V` uvnitř GNOME Shell. Funguje v editovatelných polích, která tyto zkratky podporují a ponechávají výběr. V terminálech se zkratka z bezpečnostních důvodů neprovede: `Ctrl+C` by mohlo přerušit běžící příkaz. Ve zvláštních editorech může být nutné překlad z historie zkopírovat ručně. Rozšíření vloží překlad jen tehdy, pokud je stále aktivní stejné okno a schránka od načtení výběru zůstala stejná. Po úspěšném vložení je překlad ve schránce.
+## Installation
 
-Projekt se zatím nezveřejňuje.
+From the project directory:
+
+```bash
+./build.sh --install
+```
+
+On Wayland, log out and back in when needed to load new or changed JavaScript,
+then enable the extension:
+
+```bash
+gnome-extensions enable translateplace@tomasmark79
+```
+
+Installation updates the user copy without enabling the extension or logging you out.
+The build does not install, start or configure the API server.
+
+## Usage
+
+Select text in an editable field and press **Super + Shift + E**. The original is
+saved to history before the translation request. The panel menu provides history
+and Preferences; click a history entry to see the original and translation.
+
+```bash
+gnome-extensions prefs translateplace@tomasmark79
+```
+
+### Clipboard and history
+
+Selection capture and pasting use **Ctrl + C** and **Ctrl + V** inside GNOME Shell.
+The shortcut is skipped in terminals because Ctrl + C could interrupt a running
+command. Editors must support those shortcuts and retain the selection; otherwise
+copy the translation from history manually.
+
+Automatic paste occurs only while the same window remains active and the clipboard
+has not changed since selection capture. After a successful paste, the clipboard
+contains the translation. Disable automatic paste in Preferences to review results
+before inserting them.
+
+History is stored in `~/.local/state/translateplace/history.json` with permissions
+0600. It contains private selected text, including originals retained after API
+errors. Consider that content before sharing or backing up the file.
+
+URLs, emoji, code blocks, HTML tags and Markdown links/emphasis are masked during
+translation. The model can still omit or move protected parts; the result is pasted
+and history reports missing or changed parts. The original remains available.
+Formatting outside the text, such as WYSIWYG styles, may be lost when pasting plain text.
+
+## Development
+
+```bash
+./build.sh --check
+./build.sh
+```
+
+Both commands validate metadata, JavaScript and the XML schema and run the existing
+text protection regression test. The output is `dist/translateplace@tomasmark79.zip`.
+`-b` and `-r` are build aliases; `-i`, `-bi` and `-ri` build current sources and install them.
+
+Compare with a separately saved reference archive, if available:
+
+```bash
+./build.sh --compare-zip /path/to/previous-translateplace.zip
+```
+
+This checks identical paths and bytes for every packaged file, including metadata.
+ZIP timestamps and compression may differ. A metadata update also counts as a difference.
+The package contains runtime JavaScript, metadata and the XML schema; GNOME compiles
+the schema during installation. The private server and tests are not bundled.
+
+`require_project_url=false` explicitly supports this private project without a public
+URL. Its metadata is not intended for submission to extensions.gnome.org.
+
+For runtime changes, check text replacement, automatic paste disabled, history,
+long-text dialogs, API errors and disable/enable during a pending translation in
+GNOME. Build checks alone do not verify clipboard behavior in the running session.
+
+## Troubleshooting
+
+If the API cannot be reached, check the local health endpoint and
+`translation-api.service`. If automatic paste is skipped, check window focus,
+clipboard changes and editor shortcut support; the result remains in history.
+Start a fresh GNOME session if an installed code change does not appear.
+
+## License
+
+This private project currently has no project-wide LICENSE file.
