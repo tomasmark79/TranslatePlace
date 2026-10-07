@@ -53,10 +53,13 @@ On Wayland, log out and back in when needed to load new or changed JavaScript,
 then enable the extension:
 
 ```bash
-gnome-extensions enable translateplace@tomasmark79
+gnome-extensions enable translateplace@digitalspace.name
 ```
 
 Installation updates the user copy without enabling the extension or logging you out.
+When replacing an older installation with UUID `translateplace@tomasmark79`, disable
+that copy before enabling the new one. The settings schema and history path remain
+the same.
 The build does not install, start or configure the API server.
 
 ## Usage
@@ -66,7 +69,7 @@ saved to history before the translation request. The panel menu provides history
 and Preferences; click a history entry to see the original and translation.
 
 ```bash
-gnome-extensions prefs translateplace@tomasmark79
+gnome-extensions prefs translateplace@digitalspace.name
 ```
 
 ### Clipboard and history
@@ -98,7 +101,7 @@ Formatting outside the text, such as WYSIWYG styles, may be lost when pasting pl
 ```
 
 Both commands validate metadata, JavaScript and the XML schema and run the existing
-text protection regression test. The output is `dist/translateplace@tomasmark79.zip`.
+text protection regression test. The output is `dist/translateplace@digitalspace.name.zip`.
 `-b` and `-r` are build aliases; `-i`, `-bi` and `-ri` build current sources and install them.
 
 Compare with a separately saved reference archive, if available:

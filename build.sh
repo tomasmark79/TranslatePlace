@@ -72,8 +72,8 @@ if 'url' in m:
         raise SystemExit('The project URL must be a valid HTTP(S) URL.')
 elif sys.argv[1] != 'true':
     print('Notice: existing metadata has no project URL; add one before GNOME publication.', file=sys.stderr)
-if m['uuid'].split('@')[1] == 'gnome.org':
-    raise SystemExit('The gnome.org namespace requires explicit permission from the GNOME Foundation.')
+if m['uuid'].split('@')[1] != 'digitalspace.name':
+    raise SystemExit('Extension UUID must use the digitalspace.name namespace.')
 if not isinstance(m['shell-version'], list) or not all(isinstance(v, str) and v.isdigit() for v in m['shell-version']):
     raise SystemExit('shell-version must be a list of version number strings.')
 schema_ids = set()
