@@ -4,6 +4,98 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
+function lifecycleFixture(load) {
+    const handlers = new Map();
+    const saves = [];
+    const settings = {get_int: () => 1,
+        connect: (key, callback) => {handlers.set(key, callback); return key;}, disconnect() {}};
+    const context = vm.createContext({
+        Extension: class {getSettings() {return settings;}},
+        Gio: {Cancellable: class {
+            is_cancelled() {return Boolean(this.cancelled);}
+            cancel() {this.cancelled = true;}
+        }},
+        History: class {
+            constructor() {this.entries = [];}
+            load() {return load(this);}
+            save() {saves.push(this.entries.map(entry => entry.original)); return Promise.resolve();}
+        },
+        TranslationApi: class {close() {}},
+        Clutter: {get_default_backend: () => ({get_default_seat: () => ({create_virtual_device() {}})}), InputDeviceType: {}},
+        PanelMenu: {Button: class {add_child() {} destroy() {}}}, St: {Icon: class {}},
+        Main: {notify() {}, panel: {addToStatusArea() {}}, wm: {addKeybinding() {}, removeKeybinding() {}}},
+        Meta: {KeyBindingFlags: {}}, Shell: {ActionMode: {}}, log() {}, logError() {},
+    });
+    const source = fs.readFileSync(path.join(__dirname, '../extension.js'), 'utf8')
+        .replace(/^import .*;\n/gm, '').replace('export default class TranslatePlace', 'class TranslatePlace');
+    vm.runInContext(source + '\nglobalThis.TranslatePlace = TranslatePlace;', context);
+    const instance = new context.TranslatePlace();
+    instance._buildMenu = () => {
+        instance._historyScroll = {remove_child() {}, destroy() {}};
+        instance._historySection = {actor: {}, destroy() {}};
+    };
+    instance._updateMenu = () => {};
+    return {instance, handlers, saves};
+}
+
+test('Changing the history limit waits for loading and preserves existing entries', async () => {
+    let finishLoad;
+    const {instance, handlers, saves} = lifecycleFixture(history => new Promise(resolve => {
+        finishLoad = () => {
+            history.entries = [{original: 'Newest'}, {original: 'Older'}];
+            resolve();
+        };
+    }));
+    instance.enable();
+    handlers.get('changed::history-limit')();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(saves.length, 0, 'History was overwritten before loading');
+    finishLoad();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(Array.from(saves[0]), ['Newest']);
+    instance.disable();
+});
+
+test('A history limit change cannot overwrite unreadable history or write after disable', async () => {
+    const failed = lifecycleFixture(() => Promise.reject(new Error('Unreadable history')));
+    failed.instance.enable();
+    failed.handlers.get('changed::history-limit')();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(failed.saves.length, 0);
+    failed.instance.disable();
+
+    let finishLoad;
+    const cancelled = lifecycleFixture(() => new Promise(resolve => {finishLoad = resolve;}));
+    cancelled.instance.enable();
+    cancelled.handlers.get('changed::history-limit')();
+    cancelled.instance.disable();
+    finishLoad();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(cancelled.saves.length, 0);
+});
+
+test('A successful re-enable recovers from an earlier history load error', async () => {
+    let fail = true;
+    const {instance, handlers, saves} = lifecycleFixture(history => {
+        if (fail)
+            return Promise.reject(new Error('Unreadable history'));
+        history.entries = [{original: 'Recovered history'}];
+        return Promise.resolve();
+    });
+    instance.enable();
+    await instance._ready;
+    assert.equal(instance._loadError.message, 'Unreadable history');
+    instance.disable();
+    fail = false;
+    instance.enable();
+    await instance._ready;
+    assert.equal(instance._loadError, null, 'An old load error still blocks translation');
+    handlers.get('changed::history-limit')();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(Array.from(saves[0]), ['Recovered history']);
+    instance.disable();
+});
+
 test('Both shortcuts select independent targets, retain the active job target and clean up on disable', async () => {
     const bindings = new Map();
     const removed = [];

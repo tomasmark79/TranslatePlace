@@ -16,8 +16,10 @@ try {
     assert(settings.get_string('api-url') === 'http://127.0.0.1:5001', 'API default changed');
     assert(targetLanguage(settings) === 'en', 'Language 1 default changed');
     assert(targetLanguage(settings, true) === 'cs', 'Language 2 default changed');
-    assert(settings.get_strv('translate-shortcut')[0] === '<Super><Shift>e', 'Existing shortcut changed');
+    assert(settings.get_strv('translate-shortcut').length === 0, 'Clipboard shortcut must start unassigned');
     assert(settings.get_strv('translate-secondary-shortcut').length === 0, 'Second shortcut should start unassigned');
+    settings.set_strv('translate-shortcut', ['<Super><Shift>e']);
+    assert(settings.get_strv('translate-shortcut')[0] === '<Super><Shift>e', 'User-defined shortcut was not saved');
     settings.set_string('direction', 'en-cs');
     assert(targetLanguage(settings) === 'cs', 'Legacy direction lost');
     settings.set_string('target-language', 'en');

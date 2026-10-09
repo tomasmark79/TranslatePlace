@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Tomáš Mark
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';

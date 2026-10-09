@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Tomáš Mark
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -63,46 +66,53 @@ function readClipboard(cancellable) {
     });
 }
 
-function readFreshSelection(device, cancellable) {
-    return new Promise((resolve, reject) => {
-        const selection = global.display.get_selection();
-        let done = false;
-        let timeout = 0;
-        const finish = (error, text) => {
-            if (done)
-                return;
-            done = true;
-            selection.disconnect(handler);
-            cancellable.disconnect(cancelHandler);
-            if (timeout)
-                GLib.Source.remove(timeout);
-            if (error)
-                reject(error);
-            else
-                resolve(text);
-        };
-        const handler = selection.connect('owner-changed', (_selection, type) => {
-            if (type !== Meta.SelectionType.SELECTION_CLIPBOARD)
-                return;
-            (async () => {
-                for (let attempt = 0; attempt < 12 && !done; attempt++) {
-                    await pause(75, cancellable);
-                    const text = await readClipboard(cancellable);
-                    if (text) {
-                        finish(null, text);
-                        return;
+async function readFreshSelection(device, cancellable) {
+    if (cancellable.is_cancelled())
+        throw new Error('Cancelled');
+    let cancelHandler = 0;
+    try {
+        return await new Promise((resolve, reject) => {
+            const selection = global.display.get_selection();
+            let done = false;
+            let timeout = 0;
+            const finish = (error, text) => {
+                if (done)
+                    return;
+                done = true;
+                selection.disconnect(handler);
+                if (timeout)
+                    GLib.Source.remove(timeout);
+                if (error)
+                    reject(error);
+                else
+                    resolve(text);
+            };
+            const handler = selection.connect('owner-changed', (_selection, type) => {
+                if (type !== Meta.SelectionType.SELECTION_CLIPBOARD)
+                    return;
+                (async () => {
+                    for (let attempt = 0; attempt < 12 && !done; attempt++) {
+                        await pause(75, cancellable);
+                        const text = await readClipboard(cancellable);
+                        if (text) {
+                            finish(null, text);
+                            return;
+                        }
                     }
-                }
-            })().catch(error => finish(error));
+                })().catch(error => finish(error));
+            });
+            cancelHandler = cancellable.connect(() => finish(new Error('Cancelled')));
+            timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, COPY_WAIT_MS, () => {
+                timeout = 0;
+                finish(new Error('Could not read the selected text.'));
+                return GLib.SOURCE_REMOVE;
+            });
+            controlKey(device, 46); // Ctrl+C
         });
-        const cancelHandler = cancellable.connect(() => finish(new Error('Cancelled')));
-        timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, COPY_WAIT_MS, () => {
-            timeout = 0;
-            finish(new Error('Could not read the selected text.'));
-            return GLib.SOURCE_REMOVE;
-        });
-        controlKey(device, 46); // Ctrl+C
-    });
+    } finally {
+        if (cancelHandler)
+            cancellable.disconnect(cancelHandler);
+    }
 }
 
 function shortText(text) {
@@ -130,6 +140,7 @@ export default class TranslatePlace extends Extension {
         this._cancellable = new Gio.Cancellable();
         this._api = new TranslationApi(this._settings);
         this._history = new History();
+        this._loadError = null;
         this._busy = false;
         this._clearingHistory = false;
         log('[TranslatePlace] bounded history dialog loaded');
@@ -151,13 +162,18 @@ export default class TranslatePlace extends Extension {
             }
         });
         this._limitHandler = this._settings.connect('changed::history-limit', () => {
-            this._history.entries.length = Math.min(this._history.entries.length, this._settings.get_int('history-limit'));
-            this._history.save(this._settings.get_int('history-limit'), this._cancellable)
-                .catch(error => {
-                    if (!cancellable.is_cancelled())
-                        logError(error, '[TranslatePlace] saving history');
-                });
-            this._updateMenu();
+            this._ready.then(async () => {
+                if (cancellable.is_cancelled() || this._loadError)
+                    return;
+                const limit = this._settings.get_int('history-limit');
+                this._history.entries.length = Math.min(this._history.entries.length, limit);
+                const saved = this._history.save(limit, cancellable);
+                this._updateMenu();
+                await saved;
+            }).catch(error => {
+                if (!cancellable.is_cancelled())
+                    logError(error, '[TranslatePlace] saving history');
+            });
         });
         Main.wm.addKeybinding(SHORTCUT, this._settings, Meta.KeyBindingFlags.NONE,
             Shell.ActionMode.NORMAL, () => this._startTranslation());

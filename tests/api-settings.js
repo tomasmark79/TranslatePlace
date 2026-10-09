@@ -20,6 +20,7 @@ for (const input of ['', 'localhost:5001', 'file:///tmp/api', 'https://',
 }
 const server = new Soup.Server();
 const calls = [];
+let nextAddress = null;
 server.add_handler(null, (_server, message, path) => {
     calls.push({path, method: message.get_method()});
     const result = message.get_method() === 'POST'
@@ -27,6 +28,8 @@ server.add_handler(null, (_server, message, path) => {
         : {status: 'done', translatedText: 'Hello'};
     message.set_status(message.get_method() === 'POST' ? 202 : 200, null);
     message.set_response('application/json', Soup.MemoryUse.COPY, JSON.stringify(result));
+    if (message.get_method() === 'POST' && nextAddress !== null)
+        address = nextAddress;
 });
 server.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
 let address = server.get_uris()[0].to_string().replace(/\/+$/, '') + '/prefix/';
@@ -43,6 +46,32 @@ try {
     let rejected = false;
     try { await api.translate('Hello', 'auto', 'cs', new Gio.Cancellable()); } catch { rejected = true; }
     assert(rejected && calls.length === 4, 'Invalid saved address sent a request');
+    const otherServer = new Soup.Server();
+    const otherCalls = [];
+    otherServer.add_handler(null, (_server, message, path) => {
+        otherCalls.push({path, method: message.get_method()});
+        const post = message.get_method() === 'POST';
+        message.set_status(post ? 202 : 200, null);
+        message.set_response('application/json', Soup.MemoryUse.COPY, JSON.stringify(post
+            ? {jobId: 'b'.repeat(32), status: 'pending'}
+            : {status: 'done', translatedText: 'Second server'}));
+    });
+    otherServer.listen_local(0, Soup.ServerListenOptions.IPV4_ONLY);
+    try {
+        address = server.get_uris()[0].to_string();
+        nextAddress = otherServer.get_uris()[0].to_string();
+        const originalResult = await api.translate('Ahoj', 'auto', 'en', new Gio.Cancellable());
+        assert(originalResult === 'Hello' && otherCalls.length === 0,
+            'An address change redirected a pending job to another server');
+        nextAddress = null;
+        const newResult = await api.translate('Hello', 'auto', 'cs', new Gio.Cancellable());
+        assert(newResult === 'Second server' && otherCalls.length === 2,
+            'The next translation did not use the changed server');
+        assert(otherCalls[0].method === 'POST' && otherCalls[1].path === `/translations/${'b'.repeat(32)}`,
+            'The changed server did not receive its own job ID');
+    } finally {
+        otherServer.disconnect();
+    }
     print('API address validation and configured HTTP requests passed.');
 } finally {
     api.close();

@@ -9,7 +9,7 @@ can be configured with separate shortcuts.
 
 ## Features
 
-- Translate the selection with **Super + Shift + E**
+- Translate the selection with a shortcut you choose
 - Two target languages with independently configurable shortcuts
 - Configurable API address
 - Optional automatic replacement of the selected text
@@ -67,7 +67,7 @@ The build does not install, start or configure the API server.
 
 ## Usage
 
-Select text in an editable field and press **Super + Shift + E**. The original is
+Assign a shortcut in Preferences, then select text in an editable field and press it. The original is
 saved to history before the translation request. The panel menu provides history
 and Preferences; click a history entry to see the original and translation.
 **Delete history** appears when history contains entries and asks for confirmation
@@ -75,9 +75,9 @@ before deleting all saved originals and translations.
 
 In **Preferences**, choose a target language and a keyboard shortcut separately for
 **TranslatePlace language 1** and **TranslatePlace language 2**. Source language is
-always detected automatically. Language 1 defaults to English and retains the
-existing **Super + Shift + E** shortcut (including any user customization).
-Language 2 defaults to Czech and starts without a shortcut. Click **Change…** and
+always detected automatically. Language 1 defaults to English and language 2 to Czech.
+Both shortcuts start unassigned; existing user-defined shortcuts are preserved.
+Click **Change…** and
 press the desired combination; **Escape** cancels and **Backspace** removes it.
 Use Ctrl, Alt or Super with another key, and avoid shortcuts already used by GNOME
 or applications. The two language shortcuts must differ. Changes apply without
@@ -90,7 +90,8 @@ The default is `http://127.0.0.1:5001`; **Default** restores it. HTTP, HTTPS,
 ports and path prefixes (such as `https://example.com/api`) are supported.
 Use the base address without `/translate`; credentials, query parameters and
 fragments are rejected. Both language shortcuts use the same saved address.
-Changes apply immediately.
+Changes apply to the next translation. A running translation finishes using the
+address it started with.
 
 ```bash
 gnome-extensions prefs translateplace@digitalspace.name
@@ -139,7 +140,7 @@ Compare with a separately saved reference archive, if available:
 
 This checks identical paths and bytes for every packaged file, including metadata.
 ZIP timestamps and compression may differ. A metadata update also counts as a difference.
-The package contains runtime JavaScript, metadata and the XML schema; GNOME compiles
+The package contains runtime JavaScript, metadata, the license and the XML schema; GNOME compiles
 the schema during installation. The private server and tests are not bundled.
 
 Project: [TranslatePlace](https://github.com/tomasmark79/TranslatePlace).
@@ -159,6 +160,7 @@ Report problems in the [issue tracker](https://github.com/tomasmark79/TranslateP
 
 ## License
 
-No project-wide LICENSE file is currently provided.
+TranslatePlace is licensed under the GNU General Public License, version 3 or
+any later version (SPDX: `GPL-3.0-or-later`). See [LICENSE](LICENSE).
 
 [GitHub](https://github.com/tomasmark79/TranslatePlace) · [Donate via PayPal](https://paypal.me/TomasMark)

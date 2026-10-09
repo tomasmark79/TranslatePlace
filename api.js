@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Tomáš Mark
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Soup from 'gi://Soup?version=3.0';
@@ -14,8 +17,7 @@ export class TranslationApi {
         this._session = new Soup.Session({timeout: 20});
     }
 
-    async _request(method, path, data, cancellable) {
-        const root = normalizeApiUrl(this._settings?.get_string('api-url') ?? DEFAULT_API_URL);
+    async _request(root, method, path, data, cancellable) {
         const message = Soup.Message.new(method, root + path);
         if (data !== null)
             message.set_request_body_from_bytes('application/json', new GLib.Bytes(encoder.encode(JSON.stringify(data))));
@@ -27,12 +29,13 @@ export class TranslationApi {
     }
 
     async translate(text, source, target, cancellable) {
-        const started = await this._request('POST', '/translate', {q: text, source, target}, cancellable);
+        const root = normalizeApiUrl(this._settings?.get_string('api-url') ?? DEFAULT_API_URL);
+        const started = await this._request(root, 'POST', '/translate', {q: text, source, target}, cancellable);
         if (!/^[0-9a-f]{32}$/.test(started.jobId ?? ''))
             throw new Error('The API did not return a valid translation ID.');
         for (let attempt = 0; attempt < 600; attempt++) {
             await delay(250, cancellable);
-            const result = await this._request('GET', `/translations/${started.jobId}`, null, cancellable);
+            const result = await this._request(root, 'GET', `/translations/${started.jobId}`, null, cancellable);
             if (result.status === 'done') {
                 if (typeof result.translatedText !== 'string' || !result.translatedText)
                     throw new Error('The API returned an empty translation.');

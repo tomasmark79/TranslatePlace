@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (C) 2026 Tomáš Mark; SPDX-License-Identifier: GPL-3.0-or-later -->
 <schemalist>
   <schema id="org.gnome.shell.extensions.translateplace" path="/org/gnome/shell/extensions/translateplace/">
     <key name="translate-shortcut" type="as">
-      <default>['&lt;Super&gt;&lt;Shift&gt;e']</default>
+      <default>[]</default>
       <summary>Shortcut for TranslatePlace language 1</summary>
     </key>
     <key name="translate-secondary-shortcut" type="as">

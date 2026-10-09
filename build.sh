@@ -7,7 +7,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 # Add only extension-specific runtime directories or files here.
 extra_sources=()
 # For existing projects, preserve the contents of the previous distribution ZIP.
-package_license=false
+package_license=true
 package_compiled_schemas=false
 # GNOME publication requires a project URL; preserve legacy local metadata only explicitly.
 require_project_url=true
@@ -119,7 +119,7 @@ gjs -m tests/protection.js >/dev/null
 echo 'Text protection tests passed.'
 GSETTINGS_BACKEND=memory gjs -m tests/settings.js
 gjs -m tests/api-settings.js
-node --test tests/runtime.test.cjs
+node --test tests/runtime.test.cjs tests/selection.test.cjs
 (
     history_test_state=$(mktemp -d)
     trap 'rm -rf -- "$history_test_state"' EXIT

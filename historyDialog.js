@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Tomáš Mark
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
