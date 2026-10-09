@@ -117,6 +117,14 @@ fi
 command -v gjs >/dev/null || { echo 'Missing gjs.' >&2; exit 1; }
 gjs -m tests/protection.js >/dev/null
 echo 'Text protection tests passed.'
+GSETTINGS_BACKEND=memory gjs -m tests/settings.js
+gjs -m tests/api-settings.js
+node --test tests/runtime.test.cjs
+(
+    history_test_state=$(mktemp -d)
+    trap 'rm -rf -- "$history_test_state"' EXIT
+    XDG_STATE_HOME="$history_test_state" gjs -m tests/history.js
+)
 if "$check_only"; then echo 'Validation passed.'; exit 0; fi
 command -v zip >/dev/null || { echo 'Missing zip.' >&2; exit 1; }
 if "$install_extension"; then

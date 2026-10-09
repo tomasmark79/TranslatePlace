@@ -4,17 +4,19 @@ import Soup from 'gi://Soup?version=3.0';
 
 Gio._promisify(Soup.Session.prototype, 'send_and_read_async', 'send_and_read_finish');
 
-const ROOT = 'http://127.0.0.1:5001';
+import {DEFAULT_API_URL, normalizeApiUrl} from './api-settings.js';
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
 export class TranslationApi {
-    constructor() {
+    constructor(settings = null) {
+        this._settings = settings;
         this._session = new Soup.Session({timeout: 20});
     }
 
     async _request(method, path, data, cancellable) {
-        const message = Soup.Message.new(method, ROOT + path);
+        const root = normalizeApiUrl(this._settings?.get_string('api-url') ?? DEFAULT_API_URL);
+        const message = Soup.Message.new(method, root + path);
         if (data !== null)
             message.set_request_body_from_bytes('application/json', new GLib.Bytes(encoder.encode(JSON.stringify(data))));
         const bytes = await this._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, cancellable);
@@ -27,21 +29,21 @@ export class TranslationApi {
     async translate(text, source, target, cancellable) {
         const started = await this._request('POST', '/translate', {q: text, source, target}, cancellable);
         if (!/^[0-9a-f]{32}$/.test(started.jobId ?? ''))
-            throw new Error('API nevrátilo platné ID překladu.');
+            throw new Error('The API did not return a valid translation ID.');
         for (let attempt = 0; attempt < 600; attempt++) {
             await delay(250, cancellable);
             const result = await this._request('GET', `/translations/${started.jobId}`, null, cancellable);
             if (result.status === 'done') {
                 if (typeof result.translatedText !== 'string' || !result.translatedText)
-                    throw new Error('API vrátilo prázdný překlad.');
+                    throw new Error('The API returned an empty translation.');
                 return result.translatedText;
             }
             if (result.status === 'failed')
-                throw new Error(result.error || 'Překlad selhal.');
+                throw new Error(result.error || 'Translation failed.');
             if (result.status !== 'pending')
-                throw new Error('API vrátilo neznámý stav překladu.');
+                throw new Error('The API returned an unknown translation status.');
         }
-        throw new Error('Časový limit překladu vypršel.');
+        throw new Error('Translation timed out.');
     }
 
     close() {
@@ -52,7 +54,7 @@ export class TranslationApi {
 function delay(ms, cancellable) {
     return new Promise((resolve, reject) => {
         if (cancellable.is_cancelled()) {
-            reject(new Error('Zrušeno'));
+            reject(new Error('Cancelled'));
             return;
         }
         let id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
@@ -64,7 +66,7 @@ function delay(ms, cancellable) {
             if (id) {
                 GLib.Source.remove(id);
                 id = 0;
-                reject(new Error('Zrušeno'));
+                reject(new Error('Cancelled'));
             }
         });
     });

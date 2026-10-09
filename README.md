@@ -1,13 +1,17 @@
 # TranslatePlace
 
 A GNOME Shell extension that translates selected text through your own
-local translation API and optionally pastes the result over the selection.
-The interface is Czech; the default direction is Czech → English.
+translation API and optionally pastes the result over the selection.
+The interface is English, source detection is automatic, and two target languages
+can be configured with separate shortcuts.
+
+![TranslatePlace preferences with two target languages and keyboard shortcuts, clipboard options, API address and compact history menu](screenshot.png)
 
 ## Features
 
 - Translate the selection with **Super + Shift + E**
-- Configurable translation direction and shortcut
+- Two target languages with independently configurable shortcuts
+- Configurable API address
 - Optional automatic replacement of the selected text
 - Local history with the original text and translation
 - Short history previews in the panel menu and a bounded dialog for full text
@@ -18,14 +22,13 @@ The interface is Czech; the default direction is Czech → English.
 Declared GNOME Shell version: **50**, as listed in `metadata.json`.
 Runtime requires GJS, libsoup 3, libadwaita and the private translation API.
 
-The endpoint is fixed in `api.js` at `http://127.0.0.1:5001`; Preferences does not
-provide a server URL setting. The backend is provided by `translation-api.service`
-in the owner's private Nixon configuration and uses Ollama. Its source code and
-installation are outside this project. Keep the server bound to loopback.
+The default endpoint is `http://127.0.0.1:5001`; change it in Preferences under
+**Connection → Translation API URL**. The backend must implement the API contract
+below. Server installation, configuration and language models are outside this project.
 
 ### API contract
 
-- `POST /translate` accepts JSON `{"q": "text", "source": "cs", "target": "en"}`.
+- `POST /translate` accepts JSON `{"q": "text", "source": "auto", "target": "en"}`.
   The server responds with HTTP 202 and `{"jobId": "<32 lowercase hex characters>", "status": "pending"}`.
 - `GET /translations/<jobId>` returns `{"status": "pending"}`, or
   `{"status": "done", "translatedText": "..."}`, or `{"status": "failed", "error": "..."}`.
@@ -67,6 +70,27 @@ The build does not install, start or configure the API server.
 Select text in an editable field and press **Super + Shift + E**. The original is
 saved to history before the translation request. The panel menu provides history
 and Preferences; click a history entry to see the original and translation.
+**Delete history** appears when history contains entries and asks for confirmation
+before deleting all saved originals and translations.
+
+In **Preferences**, choose a target language and a keyboard shortcut separately for
+**TranslatePlace language 1** and **TranslatePlace language 2**. Source language is
+always detected automatically. Language 1 defaults to English and retains the
+existing **Super + Shift + E** shortcut (including any user customization).
+Language 2 defaults to Czech and starts without a shortcut. Click **Change…** and
+press the desired combination; **Escape** cancels and **Backspace** removes it.
+Use Ctrl, Alt or Super with another key, and avoid shortcuts already used by GNOME
+or applications. The two language shortcuts must differ. Changes apply without
+restarting the extension. Existing Czech/English direction settings preserve their
+target language for language 1. Each translation keeps the target chosen when its
+shortcut was pressed. The menu keeps its existing layout.
+
+Under **Connection**, set **Translation API URL** and press its apply button.
+The default is `http://127.0.0.1:5001`; **Default** restores it. HTTP, HTTPS,
+ports and path prefixes (such as `https://example.com/api`) are supported.
+Use the base address without `/translate`; credentials, query parameters and
+fragments are rejected. Both language shortcuts use the same saved address.
+Changes apply immediately.
 
 ```bash
 gnome-extensions prefs translateplace@digitalspace.name
@@ -82,7 +106,10 @@ copy the translation from history manually.
 Automatic paste occurs only while the same window remains active and the clipboard
 has not changed since selection capture. After a successful paste, the clipboard
 contains the translation. Disable automatic paste in Preferences to review results
-before inserting them.
+before inserting them. Enable **Copy translation to clipboard** independently
+to keep the translated text ready for manual paste, including when automatic
+replacement is disabled. History is saved in every mode. Automatic replacement
+also uses the clipboard to paste on Wayland.
 
 History is stored in `~/.local/state/translateplace/history.json` with permissions
 0600. It contains private selected text, including originals retained after API
@@ -101,7 +128,7 @@ Formatting outside the text, such as WYSIWYG styles, may be lost when pasting pl
 ```
 
 Both commands validate metadata, JavaScript and the XML schema and run the existing
-text protection regression test. The output is `dist/translateplace@digitalspace.name.zip`.
+text protection, language settings and shortcut regression tests. The output is `dist/translateplace@digitalspace.name.zip`.
 `-b` and `-r` are build aliases; `-i`, `-bi` and `-ri` build current sources and install them.
 
 Compare with a separately saved reference archive, if available:

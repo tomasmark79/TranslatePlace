@@ -1,4 +1,4 @@
-// Citlivé části se obnovují po překladu; odchylky se hlásí v historii.
+// Restore protected parts after translation and report discrepancies in history.
 const PROTECTED = /```[\s\S]*?```|`[^`\n]*`|!?(?:\[[^\]\n]*\]\([^\)\n]*\))|<[^>\n]+>|https?:\/\/[^\s<>]+|\*\*|__|~~|(?:^|\n)[ \t]*(?:[-*+] |\d+\. |>[ \t]*)|[\u{1F1E6}-\u{1F1FF}]{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*/gu;
 
 export function protectText(source) {
@@ -34,12 +34,12 @@ export function restoreText(translated, parts) {
     const reordered = ordered.some((number, index) => index > 0 && number < ordered[index - 1]);
     const warnings = [];
     if (missing.length)
-        warnings.push(`Chybí ${missing.length} chráněných částí: ${missing.map(index => parts[index]).join(', ')}`);
+        warnings.push(`Missing ${missing.length} protected parts: ${missing.map(index => parts[index]).join(', ')}`);
     if (reordered)
-        warnings.push('Model změnil pořadí chráněných částí.');
+        warnings.push('The model changed the order of protected parts.');
     if (duplicate)
-        warnings.push('Model zopakoval chráněnou část.');
+        warnings.push('The model repeated a protected part.');
     if (unknown || /⟦[^⟧]*TP[^⟧]*⟧/i.test(text))
-        warnings.push('Model vrátil neznámou nebo poškozenou značku.');
+        warnings.push('The model returned an unknown or damaged placeholder.');
     return {text, warning: warnings.join(' ')};
 }

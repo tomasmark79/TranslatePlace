@@ -3,20 +3,40 @@
   <schema id="org.gnome.shell.extensions.translateplace" path="/org/gnome/shell/extensions/translateplace/">
     <key name="translate-shortcut" type="as">
       <default>['&lt;Super&gt;&lt;Shift&gt;e']</default>
-      <summary>Zkratka pro překlad označeného textu</summary>
+      <summary>Shortcut for TranslatePlace language 1</summary>
+    </key>
+    <key name="translate-secondary-shortcut" type="as">
+      <default>[]</default>
+      <summary>Shortcut for TranslatePlace language 2</summary>
+    </key>
+    <key name="target-language" type="s">
+      <default>'en'</default>
+      <summary>Target language 1 (automatic source detection)</summary>
+    </key>
+    <key name="secondary-target-language" type="s">
+      <default>'cs'</default>
+      <summary>Target language 2 (automatic source detection)</summary>
+    </key>
+    <key name="api-url" type="s">
+      <default>'http://127.0.0.1:5001'</default>
+      <summary>Translation API base URL shared by both languages</summary>
     </key>
     <key name="direction" type="s">
       <default>'cs-en'</default>
-      <summary>Výchozí směr překladu</summary>
+      <summary>Legacy translation direction (kept for migration)</summary>
     </key>
     <key name="history-limit" type="i">
       <default>50</default>
       <range min="1" max="200"/>
-      <summary>Počet záznamů historie</summary>
+      <summary>Number of history entries</summary>
+    </key>
+    <key name="copy-to-clipboard" type="b">
+      <default>false</default>
+      <summary>Copy the translation to the clipboard, independently of automatic replacement</summary>
     </key>
     <key name="auto-paste" type="b">
       <default>true</default>
-      <summary>Nahradit označený text překladem</summary>
+      <summary>Replace selected text with the translation</summary>
     </key>
   </schema>
 </schemalist>

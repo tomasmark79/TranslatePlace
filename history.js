@@ -34,6 +34,17 @@ export class History {
         return this._queue;
     }
 
+    clear(limit, cancellable) {
+        const previous = this.entries;
+        const empty = [];
+        this.entries = empty;
+        return this.save(limit, cancellable).catch(error => {
+            this.entries = this.entries === empty
+                ? previous : [...this.entries, ...previous].slice(0, limit);
+            throw error;
+        });
+    }
+
     add(entry, limit, cancellable) {
         this.entries.unshift(entry);
         this.entries.length = Math.min(this.entries.length, limit);

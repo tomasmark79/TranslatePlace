@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
+import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -10,16 +11,18 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {TranslationApi} from './api.js';
 import {History} from './history.js';
-import {HistoryDialog} from './historyDialog.js';
+import {targetLanguage} from './languages.js';
+import {HistoryDialog, DeleteHistoryDialog} from './historyDialog.js';
 import {protectText, restoreText} from './protection.js';
 
 const SHORTCUT = 'translate-shortcut';
+const SECONDARY_SHORTCUT = 'translate-secondary-shortcut';
 const COPY_WAIT_MS = 2500;
 
 function pause(ms, cancellable) {
     return new Promise((resolve, reject) => {
         if (cancellable.is_cancelled()) {
-            reject(new Error('Zrušeno'));
+            reject(new Error('Cancelled'));
             return;
         }
         let source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
@@ -32,7 +35,7 @@ function pause(ms, cancellable) {
             if (source) {
                 GLib.Source.remove(source);
                 source = 0;
-                reject(new Error('Zrušeno'));
+                reject(new Error('Cancelled'));
             }
         });
     });
@@ -53,7 +56,7 @@ function readClipboard(cancellable) {
     return new Promise((resolve, reject) => {
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clipboard, text) => {
             if (cancellable.is_cancelled())
-                reject(new Error('Zrušeno'));
+                reject(new Error('Cancelled'));
             else
                 resolve(text ?? '');
         });
@@ -92,10 +95,10 @@ function readFreshSelection(device, cancellable) {
                 }
             })().catch(error => finish(error));
         });
-        const cancelHandler = cancellable.connect(() => finish(new Error('Zrušeno')));
+        const cancelHandler = cancellable.connect(() => finish(new Error('Cancelled')));
         timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, COPY_WAIT_MS, () => {
             timeout = 0;
-            finish(new Error('Nepodařilo se přečíst označený text.'));
+            finish(new Error('Could not read the selected text.'));
             return GLib.SOURCE_REMOVE;
         });
         controlKey(device, 46); // Ctrl+C
@@ -109,7 +112,8 @@ function shortText(text) {
 
 async function waitForShortcutRelease(cancellable) {
     const modifiers = Clutter.ModifierType.SHIFT_MASK |
-        Clutter.ModifierType.SUPER_MASK | Clutter.ModifierType.MOD4_MASK;
+        Clutter.ModifierType.SUPER_MASK | Clutter.ModifierType.MOD4_MASK |
+        Clutter.ModifierType.CONTROL_MASK | Clutter.ModifierType.MOD1_MASK;
     for (let attempt = 0; attempt < 60; attempt++) {
         if (!(global.get_pointer()[2] & modifiers)) {
             await pause(80, cancellable);
@@ -117,17 +121,18 @@ async function waitForShortcutRelease(cancellable) {
         }
         await pause(50, cancellable);
     }
-    throw new Error('Uvolněte klávesy zkratky a zkuste překlad znovu.');
+    throw new Error('Release the shortcut keys and try again.');
 }
 
 export default class TranslatePlace extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._cancellable = new Gio.Cancellable();
-        this._api = new TranslationApi();
+        this._api = new TranslationApi(this._settings);
         this._history = new History();
         this._busy = false;
-        log('[TranslatePlace] načteno rozhraní historie v omezeném okně');
+        this._clearingHistory = false;
+        log('[TranslatePlace] bounded history dialog loaded');
         this._device = Clutter.get_default_backend().get_default_seat().create_virtual_device(
             Clutter.InputDeviceType.KEYBOARD_DEVICE);
         this._indicator = new PanelMenu.Button(0.0, 'TranslatePlace');
@@ -141,8 +146,8 @@ export default class TranslatePlace extends Extension {
         }).catch(error => {
             if (!cancellable.is_cancelled()) {
                 this._loadError = error;
-                Main.notify('TranslatePlace', 'Nepodařilo se načíst historii překladů.');
-                logError(error, '[TranslatePlace] historie');
+                Main.notify('TranslatePlace', 'Could not load translation history.');
+                logError(error, '[TranslatePlace] history');
             }
         });
         this._limitHandler = this._settings.connect('changed::history-limit', () => {
@@ -150,18 +155,25 @@ export default class TranslatePlace extends Extension {
             this._history.save(this._settings.get_int('history-limit'), this._cancellable)
                 .catch(error => {
                     if (!cancellable.is_cancelled())
-                        logError(error, '[TranslatePlace] ukládání historie');
+                        logError(error, '[TranslatePlace] saving history');
                 });
             this._updateMenu();
         });
         Main.wm.addKeybinding(SHORTCUT, this._settings, Meta.KeyBindingFlags.NONE,
             Shell.ActionMode.NORMAL, () => this._startTranslation());
+        Main.wm.addKeybinding(SECONDARY_SHORTCUT, this._settings, Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL, () => this._startTranslation(true));
+        this._shortcutHandlers = [SHORTCUT, SECONDARY_SHORTCUT].map(key =>
+            this._settings.connect(`changed::${key}`, () => this._updateMenu()));
         this._updateMenu();
     }
 
     disable() {
         Main.wm.removeKeybinding(SHORTCUT);
+        Main.wm.removeKeybinding(SECONDARY_SHORTCUT);
         this._settings.disconnect(this._limitHandler);
+        for (const handler of this._shortcutHandlers)
+            this._settings.disconnect(handler);
         this._cancellable.cancel();
         if (this._dialogSource) {
             GLib.Source.remove(this._dialogSource);
@@ -177,6 +189,7 @@ export default class TranslatePlace extends Extension {
         this._historySection = null;
         this._historyScroll = null;
         this._indicator = null;
+        this._deleteHistoryItem = null;
         this._device = null;
         this._history = null;
         this._settings = null;
@@ -189,9 +202,16 @@ export default class TranslatePlace extends Extension {
         const width = Math.max(320, Math.min(500, global.stage.width - 40));
         this._menuWidth = width;
         menu.actor.style = `width: ${width}px;`;
-        const title = new PopupMenu.PopupMenuItem('TranslatePlace · Super+Shift+E');
-        title.setSensitive(false);
-        menu.addMenuItem(title);
+        const header = new PopupMenu.PopupBaseMenuItem({reactive: false, can_focus: false});
+        const heading = new St.BoxLayout({vertical: true, x_expand: true, style: 'spacing: 4px;'});
+        heading.add_child(new St.Label({text: 'TranslatePlace', style: 'font-weight: 600;'}));
+        this._shortcutLabel = new St.Label({opacity: 180,
+            style: `font-size: 0.85em; width: ${width - 60}px;`});
+        this._shortcutLabel.get_clutter_text().set_line_wrap(true);
+        this._shortcutLabel.get_clutter_text().set_ellipsize(Pango.EllipsizeMode.NONE);
+        heading.add_child(this._shortcutLabel);
+        header.add_child(heading);
+        menu.addMenuItem(header);
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         const list = new PopupMenu.PopupMenuSection();
         const scroll = new St.ScrollView({style: `width: ${width}px; max-height: 380px;`,
@@ -202,17 +222,38 @@ export default class TranslatePlace extends Extension {
         list._setParent(menu);
         menu.box.add_child(scroll);
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        const prefs = new PopupMenu.PopupImageMenuItem('Nastavení', 'emblem-system-symbolic');
+        this._deleteHistoryItem = new PopupMenu.PopupImageMenuItem('Delete history', 'edit-delete-symbolic');
+        this._deleteHistoryItem.visible = false;
+        this._deleteHistoryItem.connect('activate', () => {
+            if (this._dialogSource)
+                GLib.Source.remove(this._dialogSource);
+            const cancellable = this._cancellable;
+            this._dialogSource = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._dialogSource = 0;
+                if (!cancellable.is_cancelled())
+                    this._confirmDeleteHistory();
+                return GLib.SOURCE_REMOVE;
+            });
+        });
+        menu.addMenuItem(this._deleteHistoryItem);
+        const prefs = new PopupMenu.PopupImageMenuItem('Preferences', 'emblem-system-symbolic');
         prefs.connect('activate', () => this.openPreferences());
         menu.addMenuItem(prefs);
     }
 
     _updateMenu() {
+        this._deleteHistoryItem.visible = this._history.entries.length > 0;
+        this._deleteHistoryItem.setSensitive(!this._clearingHistory);
+        this._shortcutLabel.text = [SHORTCUT, SECONDARY_SHORTCUT].map((key, index) => {
+            const accelerator = this._settings.get_strv(key)[0] || '';
+            const shortcut = accelerator.replace(/<([^>]+)>/g, '$1+').replace(/.$/, letter => letter.toUpperCase());
+            return `${index + 1}: ${shortcut || 'Not assigned'}`;
+        }).join('   ·   ');
         const list = this._historySection;
         const width = this._menuWidth;
         list.removeAll();
         if (!this._history.entries.length) {
-            const empty = new PopupMenu.PopupMenuItem('Zatím žádné překlady');
+            const empty = new PopupMenu.PopupMenuItem('No translations yet');
             empty.setSensitive(false);
             list.addMenuItem(empty);
         }
@@ -235,6 +276,47 @@ export default class TranslatePlace extends Extension {
         }
     }
 
+    _confirmDeleteHistory() {
+        if (!this._history.entries.length || this._clearingHistory)
+            return;
+        this._detailDialog?.destroy();
+        const cancellable = this._cancellable;
+        const dialog = new DeleteHistoryDialog(this._history.entries.length, () => {
+            if (!cancellable.is_cancelled())
+                void this._clearHistory().catch(error => {
+                    if (!cancellable.is_cancelled())
+                        Main.notify('TranslatePlace', `Could not delete history: ${error.message}`);
+                });
+        });
+        this._detailDialog = dialog;
+        dialog.connect('destroy', () => {
+            if (this._detailDialog === dialog)
+                this._detailDialog = null;
+        });
+        dialog.open();
+    }
+
+    async _clearHistory() {
+        if (this._clearingHistory)
+            return;
+        const cancellable = this._cancellable;
+        this._clearingHistory = true;
+        try {
+            await this._ready;
+            if (cancellable.is_cancelled())
+                return;
+            this._detailDialog?.destroy();
+            const saved = this._history.clear(this._settings.get_int('history-limit'), cancellable);
+            this._updateMenu();
+            await saved;
+        } finally {
+            if (!cancellable.is_cancelled()) {
+                this._clearingHistory = false;
+                this._updateMenu();
+            }
+        }
+    }
+
     _showHistory(entry) {
         this._detailDialog?.destroy();
         const dialog = new HistoryDialog(entry);
@@ -246,15 +328,16 @@ export default class TranslatePlace extends Extension {
         dialog.open();
     }
 
-    _startTranslation() {
+    _startTranslation(secondary = false) {
         if (this._busy)
             return;
         this._busy = true;
         const cancellable = this._cancellable;
-        this._translate().catch(error => {
+        const target = targetLanguage(this._settings, secondary);
+        this._translate(target).catch(error => {
             if (!cancellable.is_cancelled()) {
                 Main.notify('TranslatePlace', error.message);
-                logError(error, '[TranslatePlace] překlad');
+                logError(error, '[TranslatePlace] translation');
             }
         }).finally(() => {
             if (!cancellable.is_cancelled())
@@ -262,65 +345,75 @@ export default class TranslatePlace extends Extension {
         });
     }
 
-    async _translate() {
+    async _translate(target) {
         const cancellable = this._cancellable;
         await this._ready;
         if (cancellable.is_cancelled())
             return;
         if (this._loadError)
-            throw new Error('Historie je nedostupná; překlad je vypnutý, aby se neztratil originál.');
+            throw new Error('History is unavailable. Translation is disabled to preserve the original text.');
         await waitForShortcutRelease(cancellable);
         const window = global.display.focus_window;
         if (!window)
-            throw new Error('Nejprve označte text v okně aplikace.');
+            throw new Error('Select text in an application window first.');
         if (/(terminal|console|kitty|alacritty|wezterm|foot|ghostty)/i.test(window.get_wm_class() ?? ''))
-            throw new Error('V terminálu by Ctrl+C mohlo přerušit běžící příkaz.');
+            throw new Error('Ctrl+C could interrupt a running command in a terminal.');
         const original = await readFreshSelection(this._device, cancellable);
         if (cancellable.is_cancelled())
             return;
         if (original.length > 10000)
-            throw new Error('Text přesahuje limit API 10 000 znaků.');
-        const direction = this._settings.get_string('direction').split('-');
+            throw new Error('The text exceeds the 10,000-character API limit.');
         const entry = {at: new Date().toISOString(), original, translated: '',
-            direction: direction.join('→'), status: 'Překládá se'};
+            direction: `auto→${target}`, targetLanguage: target, status: 'Translating'};
         await this._history.add(entry, this._settings.get_int('history-limit'), cancellable);
         if (cancellable.is_cancelled())
             return;
         this._updateMenu();
         try {
             const masked = protectText(original);
-            const raw = await this._api.translate(masked.text, direction[0], direction[1], cancellable);
+            const raw = await this._api.translate(masked.text, 'auto', target, cancellable);
             if (cancellable.is_cancelled())
                 return;
             const restored = restoreText(raw, masked.parts);
             entry.translated = restored.text;
             entry.warning = restored.warning;
-            entry.status = 'Hotovo';
+            entry.status = 'Done';
             await this._history.save(this._settings.get_int('history-limit'), cancellable);
             if (cancellable.is_cancelled())
                 return;
             this._updateMenu();
-            if (!this._settings.get_boolean('auto-paste')) {
-                Main.notify('TranslatePlace', 'Překlad je uložen v historii.');
+            const autoPaste = this._settings.get_boolean('auto-paste');
+            const copyToClipboard = this._settings.get_boolean('copy-to-clipboard');
+            if (!autoPaste && !copyToClipboard) {
+                Main.notify('TranslatePlace', 'The translation is saved in history.');
                 return;
             }
-            if (global.display.focus_window !== window)
-                throw new Error('Aktivní okno se změnilo. Překlad je uložen v historii.');
+            if (autoPaste && global.display.focus_window !== window)
+                throw new Error('The active window changed. The translation is saved in history.');
             if (await readClipboard(cancellable) !== original)
-                throw new Error('Schránka se změnila. Překlad je uložen v historii.');
+                throw new Error('The clipboard changed. The translation is saved in history.');
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, entry.translated);
+            if (!autoPaste) {
+                entry.status = 'Copied to clipboard';
+                await this._history.save(this._settings.get_int('history-limit'), cancellable);
+                if (!cancellable.is_cancelled()) {
+                    this._updateMenu();
+                    Main.notify('TranslatePlace', 'Translation copied to the clipboard.');
+                }
+                return;
+            }
             await pause(90, cancellable);
             if (global.display.focus_window !== window)
-                throw new Error('Aktivní okno se změnilo. Překlad je uložen v historii.');
-            controlKey(this._device, 47); // Ctrl+V; aplikace stále drží původní výběr.
-            entry.status = 'Vložení odesláno';
+                throw new Error('The active window changed. The translation is saved in history.');
+            controlKey(this._device, 47); // Ctrl+V; the application still holds the original selection.
+            entry.status = 'Paste sent';
             await this._history.save(this._settings.get_int('history-limit'), cancellable);
             if (!cancellable.is_cancelled())
                 this._updateMenu();
         } catch (error) {
             if (cancellable.is_cancelled())
                 return;
-            entry.status = `Chyba: ${error.message}`;
+            entry.status = `Error: ${error.message}`;
             await this._history.save(this._settings.get_int('history-limit'), cancellable);
             this._updateMenu();
             throw error;
