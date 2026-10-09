@@ -20,7 +20,9 @@ can be configured with separate shortcuts.
 ## Requirements
 
 Declared GNOME Shell version: **50**, as listed in `metadata.json`.
-Runtime requires GJS, libsoup 3, libadwaita and the private translation API.
+Runtime requires GJS, libsoup 3, libadwaita and a compatible translation server.
+Use [Translation API](https://github.com/tomasmark79/translation-api), a separate
+server using Ollama. Follow its README to install the server and language model.
 
 The default endpoint is `http://127.0.0.1:5001`; change it in Preferences under
 **Connection → Translation API URL**. The backend must implement the API contract
@@ -34,7 +36,7 @@ below. Server installation, configuration and language models are outside this p
   `{"status": "done", "translatedText": "..."}`, or `{"status": "failed", "error": "..."}`.
 - Maximum input: 10,000 characters.
 
-Check that the private server is running before using the extension:
+Check that the translation server is running before using the extension:
 
 ```bash
 curl http://127.0.0.1:5001/health
@@ -60,9 +62,6 @@ gnome-extensions enable translateplace@digitalspace.name
 ```
 
 Installation updates the user copy without enabling the extension or logging you out.
-When replacing an older installation with UUID `translateplace@tomasmark79`, disable
-that copy before enabling the new one. The settings schema and history path remain
-the same.
 The build does not install, start or configure the API server.
 
 ## Usage
@@ -76,14 +75,13 @@ before deleting all saved originals and translations.
 In **Preferences**, choose a target language and a keyboard shortcut separately for
 **TranslatePlace language 1** and **TranslatePlace language 2**. Source language is
 always detected automatically. Language 1 defaults to English and language 2 to Czech.
-Both shortcuts start unassigned; existing user-defined shortcuts are preserved.
+Both shortcuts start unassigned.
 Click **Change…** and
 press the desired combination; **Escape** cancels and **Backspace** removes it.
 Use Ctrl, Alt or Super with another key, and avoid shortcuts already used by GNOME
 or applications. The two language shortcuts must differ. Changes apply without
-restarting the extension. Existing Czech/English direction settings preserve their
-target language for language 1. Each translation keeps the target chosen when its
-shortcut was pressed. The menu keeps its existing layout.
+restarting the extension. Each translation keeps the target chosen when its
+shortcut was pressed.
 
 Under **Connection**, set **Translation API URL** and press its apply button.
 The default is `http://127.0.0.1:5001`; **Default** restores it. HTTP, HTTPS,
@@ -141,10 +139,11 @@ Compare with a separately saved reference archive, if available:
 This checks identical paths and bytes for every packaged file, including metadata.
 ZIP timestamps and compression may differ. A metadata update also counts as a difference.
 The package contains runtime JavaScript, metadata, the license and the XML schema; GNOME compiles
-the schema during installation. The private server and tests are not bundled.
+the schema during installation. The translation server and tests are not bundled.
 
 Project: [TranslatePlace](https://github.com/tomasmark79/TranslatePlace).
-The API backend remains private and is not included in the public repository.
+The translation server is maintained in the separate
+[Translation API repository](https://github.com/tomasmark79/translation-api).
 
 For runtime changes, check text replacement, automatic paste disabled, history,
 long-text dialogs, API errors and disable/enable during a pending translation in
