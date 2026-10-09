@@ -46,6 +46,10 @@ Build tools: Bash, Python 3, Node.js (syntax checks), GJS (text protection tests
 zip and `glib-compile-schemas`. Local installation also requires `gnome-extensions`.
 Building does not require a running translation server.
 
+The extension waits up to fifteen minutes per translation, including queue time.
+Individual HTTP requests have a twenty-second timeout so an unreachable server is
+reported promptly.
+
 ## Installation
 
 From the project directory:

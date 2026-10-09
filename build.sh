@@ -119,7 +119,7 @@ gjs -m tests/protection.js >/dev/null
 echo 'Text protection tests passed.'
 GSETTINGS_BACKEND=memory gjs -m tests/settings.js
 gjs -m tests/api-settings.js
-node --test tests/runtime.test.cjs tests/selection.test.cjs
+node --test tests/runtime.test.cjs tests/selection.test.cjs tests/api-timeouts.test.cjs
 (
     history_test_state=$(mktemp -d)
     trap 'rm -rf -- "$history_test_state"' EXIT

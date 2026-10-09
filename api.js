@@ -10,6 +10,7 @@ Gio._promisify(Soup.Session.prototype, 'send_and_read_async', 'send_and_read_fin
 import {DEFAULT_API_URL, normalizeApiUrl} from './api-settings.js';
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
+const TRANSLATION_TIMEOUT_US = 15 * 60 * 1000000;
 
 export class TranslationApi {
     constructor(settings = null) {
@@ -29,11 +30,12 @@ export class TranslationApi {
     }
 
     async translate(text, source, target, cancellable) {
+        const deadline = GLib.get_monotonic_time() + TRANSLATION_TIMEOUT_US;
         const root = normalizeApiUrl(this._settings?.get_string('api-url') ?? DEFAULT_API_URL);
         const started = await this._request(root, 'POST', '/translate', {q: text, source, target}, cancellable);
         if (!/^[0-9a-f]{32}$/.test(started.jobId ?? ''))
             throw new Error('The API did not return a valid translation ID.');
-        for (let attempt = 0; attempt < 600; attempt++) {
+        while (GLib.get_monotonic_time() < deadline) {
             await delay(250, cancellable);
             const result = await this._request(root, 'GET', `/translations/${started.jobId}`, null, cancellable);
             if (result.status === 'done') {
