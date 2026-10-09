@@ -96,6 +96,59 @@ test('A successful re-enable recovers from an earlier history load error', async
     instance.disable();
 });
 
+for (const cancelDuringSave of [false, true]) {
+    test(`Translation errors survive a failed history write; cancellation=${cancelDuringSave}`, async () => {
+        const originalError = new Error('API failed');
+        const saveError = new Error('History write failed');
+        const logged = [];
+        let cancelled = false;
+        let finishSave;
+        let saveStarted;
+        const saving = new Promise(resolve => {saveStarted = resolve;});
+        const window = {get_wm_class: () => 'TextEditor'};
+        const context = vm.createContext({
+            Extension: class {}, global: {display: {focus_window: window}},
+            protectText: text => ({text, parts: []}),
+            logError: error => logged.push(error),
+        });
+        const source = fs.readFileSync(path.join(__dirname, '../extension.js'), 'utf8')
+            .replace(/^import .*;\n/gm, '').replace('export default class TranslatePlace', 'class TranslatePlace');
+        vm.runInContext(source + `
+            globalThis.TranslatePlace = TranslatePlace;
+            waitForShortcutRelease = async () => {};
+            readFreshSelection = async () => 'Selected text';
+        `, context);
+        const instance = new context.TranslatePlace();
+        let updates = 0;
+        Object.assign(instance, {
+            _ready: Promise.resolve(), _cancellable: {is_cancelled: () => cancelled},
+            _settings: {get_int: () => 50},
+            _history: {add: async () => {}, save: () => {
+                saveStarted();
+                return new Promise((_resolve, reject) => {finishSave = () => reject(saveError);});
+            }},
+            _api: {translate: async () => {throw originalError;}},
+            _updateMenu: () => {updates++;},
+        });
+        const pending = instance._translate('en');
+        await saving;
+        assert.equal(updates, 1);
+        if (cancelDuringSave) {
+            cancelled = true;
+            instance._history = null;
+            instance._settings = null;
+            instance._updateMenu = () => {throw new Error('Menu was already destroyed');};
+        }
+        finishSave();
+        await assert.rejects(pending, error => error === originalError);
+        assert.equal(logged.length, cancelDuringSave ? 0 : 1);
+        if (!cancelDuringSave) {
+            assert.equal(logged[0], saveError);
+            assert.equal(updates, 2);
+        }
+    });
+}
+
 test('Both shortcuts select independent targets, retain the active job target and clean up on disable', async () => {
     const bindings = new Map();
     const removed = [];

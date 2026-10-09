@@ -110,6 +110,7 @@ async function readFreshSelection(device, cancellable) {
             controlKey(device, 46); // Ctrl+C
         });
     } finally {
+        // Gio.Cancellable.disconnect() must run after the cancellation callback returns.
         if (cancelHandler)
             cancellable.disconnect(cancelHandler);
     }
@@ -143,7 +144,6 @@ export default class TranslatePlace extends Extension {
         this._loadError = null;
         this._busy = false;
         this._clearingHistory = false;
-        log('[TranslatePlace] bounded history dialog loaded');
         this._device = Clutter.get_default_backend().get_default_seat().create_virtual_device(
             Clutter.InputDeviceType.KEYBOARD_DEVICE);
         this._indicator = new PanelMenu.Button(0.0, 'TranslatePlace');
@@ -206,6 +206,10 @@ export default class TranslatePlace extends Extension {
         this._historyScroll = null;
         this._indicator = null;
         this._deleteHistoryItem = null;
+        this._shortcutLabel = null;
+        this._shortcutHandlers = null;
+        this._ready = null;
+        this._loadError = null;
         this._device = null;
         this._history = null;
         this._settings = null;
@@ -430,8 +434,12 @@ export default class TranslatePlace extends Extension {
             if (cancellable.is_cancelled())
                 return;
             entry.status = `Error: ${error.message}`;
-            await this._history.save(this._settings.get_int('history-limit'), cancellable);
-            this._updateMenu();
+            await this._history.save(this._settings.get_int('history-limit'), cancellable).catch(saveError => {
+                if (!cancellable.is_cancelled())
+                    logError(saveError, '[TranslatePlace] saving translation error');
+            });
+            if (!cancellable.is_cancelled())
+                this._updateMenu();
             throw error;
         }
     }

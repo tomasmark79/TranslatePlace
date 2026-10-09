@@ -17,23 +17,26 @@ export class History {
     }
 
     async load(cancellable) {
+        let bytes;
         try {
-            const [bytes] = await this._file.load_contents_async(cancellable);
-            const parsed = JSON.parse(new TextDecoder().decode(bytes));
-            if (Array.isArray(parsed))
-                this.entries = parsed.filter(item => typeof item.original === 'string').slice(0, 200);
+            [bytes] = await this._file.load_contents_async(cancellable);
         } catch (error) {
-            if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
-                throw error;
+            if (error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+                return;
+            throw error;
         }
+        const parsed = JSON.parse(new TextDecoder().decode(bytes));
+        if (!Array.isArray(parsed))
+            throw new Error('Translation history must contain a JSON array.');
+        this.entries = parsed.filter(item => item !== null && typeof item.original === 'string').slice(0, 200);
     }
 
     save(limit, cancellable) {
         const snapshot = JSON.stringify(this.entries.slice(0, limit));
-        this._queue = this._queue.catch(() => {}).then(async () => {
-            await this._file.replace_contents_async(new TextEncoder().encode(snapshot), null, false,
-                Gio.FileCreateFlags.PRIVATE, cancellable);
-        });
+        const write = () => this._file.replace_contents_async(new TextEncoder().encode(snapshot), null, false,
+            Gio.FileCreateFlags.PRIVATE, cancellable);
+        // Each caller receives its write error; later writes can still proceed.
+        this._queue = this._queue.then(write, write);
         return this._queue;
     }
 

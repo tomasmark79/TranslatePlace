@@ -46,3 +46,36 @@ if (history.entries[0] !== before)
     throw new Error('Failed clearing removed history from memory');
 history.save = write;
 print('History deletion, late results and write failure tests passed.');
+
+const cancelled = new Gio.Cancellable();
+cancelled.cancel();
+const failedWrite = history.save(50, cancelled);
+const nextWrite = history.save(50, new Gio.Cancellable());
+let writeError;
+try { await failedWrite; } catch (error) { writeError = error; }
+if (!writeError?.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
+    throw new Error('A failed queued write did not report its error');
+await nextWrite;
+const recovered = new History();
+await recovered.load(new Gio.Cancellable());
+if (recovered.entries[0].original !== 'New selection')
+    throw new Error('A failed queued write blocked later writes');
+
+for (const contents of ['invalid JSON', '{}', 'null']) {
+    await file.replace_contents_async(new TextEncoder().encode(contents), null, false,
+        Gio.FileCreateFlags.PRIVATE, null);
+    let loadError;
+    try { await new History().load(new Gio.Cancellable()); } catch (error) { loadError = error; }
+    if (!loadError)
+        throw new Error('Invalid history was silently treated as empty');
+    const [bytes] = await file.load_contents_async(null);
+    if (new TextDecoder().decode(bytes) !== contents)
+        throw new Error('Loading invalid history modified the file');
+}
+await file.replace_contents_async(new TextEncoder().encode(JSON.stringify([null, {original: 'Valid entry'}])),
+    null, false, Gio.FileCreateFlags.PRIVATE, null);
+const filtered = new History();
+await filtered.load(new Gio.Cancellable());
+if (filtered.entries.length !== 1 || filtered.entries[0].original !== 'Valid entry')
+    throw new Error('A null history item prevented loading valid entries');
+print('History queue recovery and invalid file tests passed.');
