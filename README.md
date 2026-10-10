@@ -1,7 +1,8 @@
 # TranslatePlace
 
-A GNOME Shell extension that translates selected text through your own
-translation API and optionally pastes the result over the selection.
+A GNOME Shell extension that translates selected text using
+[Tomáš Mark's translation-api](https://github.com/tomasmark79/translation-api)
+and optionally pastes the result over the selection.
 The interface is English, source detection is automatic, and two target languages
 can be configured with separate shortcuts.
 
@@ -20,7 +21,8 @@ can be configured with separate shortcuts.
 ## Requirements
 
 Declared GNOME Shell version: **50**, as listed in `metadata.json`.
-Runtime requires GJS, libsoup 3, libadwaita and a compatible translation server.
+Runtime requires GJS, libsoup 3 and a running translation server; Preferences
+also require GTK 4 and libadwaita.
 Use [Translation API](https://github.com/tomasmark79/translation-api), a separate
 server using Ollama. Follow its README to install the server and language model.
 
@@ -42,13 +44,13 @@ Check that the translation server is running before using the extension:
 curl http://127.0.0.1:5001/health
 ```
 
-Build tools: Bash, Python 3, Node.js (syntax checks), GJS (text protection tests),
+Build tools: Bash, Python 3, Node.js and GJS (syntax/regression checks),
 zip and `glib-compile-schemas`. Local installation also requires `gnome-extensions`.
 Building does not require a running translation server.
 
 The extension waits up to fifteen minutes per translation, including queue time.
-Individual HTTP requests have a twenty-second timeout so an unreachable server is
-reported promptly.
+The HTTP session uses a twenty-second network timeout. A request already in
+progress can extend beyond the overall polling deadline.
 
 ## Installation
 
@@ -78,7 +80,8 @@ before deleting all saved originals and translations.
 
 In **Preferences**, choose a target language and a keyboard shortcut separately for
 **TranslatePlace language 1** and **TranslatePlace language 2**. Source language is
-always detected automatically. Language 1 defaults to English and language 2 to Czech.
+always detected automatically. New installations default to English for language 1 and Czech for language 2.
+An older installation may retain its previous language 1 through legacy settings.
 Both shortcuts start unassigned.
 Click **Change…** and
 press the desired combination; **Escape** cancels and **Backspace** removes it.
@@ -102,25 +105,31 @@ gnome-extensions prefs translateplace@digitalspace.name
 ### Clipboard and history
 
 Selection capture and pasting use **Ctrl + C** and **Ctrl + V** inside GNOME Shell.
-The shortcut is skipped in terminals because Ctrl + C could interrupt a running
-command. Editors must support those shortcuts and retain the selection; otherwise
+The shortcut is skipped when the window class matches a known terminal name,
+because Ctrl + C could interrupt a running command. This name check does not
+identify every terminal or embedded terminal. Editors must support those shortcuts and retain the selection; otherwise
 copy the translation from history manually.
 
 Automatic paste occurs only while the same window remains active and the clipboard
-has not changed since selection capture. After a successful paste, the clipboard
-contains the translation. Disable automatic paste in Preferences to review results
+still contains the captured text. The extension cannot verify that the editor's
+selection or draft is unchanged; keep both unchanged until translation finishes.
+Sending Ctrl + V does not confirm that the application accepted the paste. The
+clipboard then contains the translation. Disable automatic paste in Preferences to review results
 before inserting them. Enable **Copy translation to clipboard** independently
 to keep the translated text ready for manual paste, including when automatic
-replacement is disabled. History is saved in every mode. Automatic replacement
+replacement is disabled. Clipboard copying is also skipped if the clipboard text
+has changed. Automatic replacement defaults to enabled; independent clipboard
+copying defaults to disabled. History is saved in every mode. Automatic replacement
 also uses the clipboard to paste on Wayland.
 
-History is stored in `~/.local/state/translateplace/history.json` with permissions
-0600. It contains private selected text, including originals retained after API
+History is stored in `$XDG_STATE_HOME/translateplace/history.json`, defaulting to
+`~/.local/state/translateplace/history.json`, with permissions 0600. It contains private selected text, including originals retained after API
 errors. Consider that content before sharing or backing up the file.
 
-URLs, emoji, code blocks, HTML tags and Markdown links/emphasis are masked during
-translation. The model can still omit or move protected parts; the result is pasted
-and history reports missing or changed parts. The original remains available.
+HTTP/HTTPS URLs, emoji, fenced and inline code, HTML tags, Markdown links and
+selected Markdown markers are masked during translation. The model can still omit
+or move protected parts; history reports detected discrepancies. These warnings
+do not prevent automatic paste when it is enabled. The original remains available.
 Formatting outside the text, such as WYSIWYG styles, may be lost when pasting plain text.
 
 ## Development
@@ -130,8 +139,9 @@ Formatting outside the text, such as WYSIWYG styles, may be lost when pasting pl
 ./build.sh
 ```
 
-Both commands validate metadata, JavaScript and the XML schema and run the existing
-text protection, language settings and shortcut regression tests. The output is `dist/translateplace@digitalspace.name.zip`.
+Both commands validate metadata, JavaScript and the XML schema and run regression
+tests for text protection, language settings, shortcuts, API addresses/timeouts,
+clipboard handling, extension lifecycle and history. The output is `dist/translateplace@digitalspace.name.zip`.
 `-b` and `-r` are build aliases; `-i`, `-bi` and `-ri` build current sources and install them.
 
 Compare with a separately saved reference archive, if available:
@@ -155,8 +165,8 @@ GNOME. Build checks alone do not verify clipboard behavior in the running sessio
 
 ## Troubleshooting
 
-If the API cannot be reached, check the local health endpoint and
-`translation-api.service`. If automatic paste is skipped, check window focus,
+If the API cannot be reached, check your configured server's health endpoint and
+its process or service (for example, `translation-api.service` for a service deployment). If automatic paste is skipped, check window focus,
 clipboard changes and editor shortcut support; the result remains in history.
 Start a fresh GNOME session if an installed code change does not appear.
 Report problems in the [issue tracker](https://github.com/tomasmark79/TranslatePlace/issues).
