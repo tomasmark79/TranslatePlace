@@ -11,7 +11,7 @@ function lifecycleFixture(load) {
         connect: (key, callback) => {handlers.set(key, callback); return key;}, disconnect() {}};
     const context = vm.createContext({
         Extension: class {getSettings() {return settings;}},
-        Gio: {Cancellable: class {
+        Gio: {icon_new_for_string: filename => filename, Cancellable: class {
             is_cancelled() {return Boolean(this.cancelled);}
             cancel() {this.cancelled = true;}
         }},
@@ -158,7 +158,7 @@ test('Both shortcuts select independent targets, retain the active job target an
         connect: (key, callback) => {handlers.set(key, callback); return key;}, disconnect() {}};
     const context = vm.createContext({
         Extension: class { getSettings() { return settings; } },
-        Gio: {Cancellable: class { is_cancelled() { return false; } cancel() {} }},
+        Gio: {icon_new_for_string: filename => filename, Cancellable: class { is_cancelled() { return false; } cancel() {} }},
         Clutter: {get_default_backend: () => ({get_default_seat: () => ({create_virtual_device() {}})}), InputDeviceType: {}},
         TranslationApi: class { close() {} }, History: class { load() { return Promise.resolve(); } },
         PanelMenu: {Button: class { add_child() {} destroy() {} }}, St: {Icon: class {}},

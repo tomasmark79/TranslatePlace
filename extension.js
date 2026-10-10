@@ -147,7 +147,10 @@ export default class TranslatePlace extends Extension {
         this._device = Clutter.get_default_backend().get_default_seat().create_virtual_device(
             Clutter.InputDeviceType.KEYBOARD_DEVICE);
         this._indicator = new PanelMenu.Button(0.0, 'TranslatePlace');
-        this._indicator.add_child(new St.Icon({icon_name: 'preferences-desktop-locale-symbolic', style_class: 'system-status-icon'}));
+        this._indicator.add_child(new St.Icon({
+            gicon: Gio.icon_new_for_string(`${this.path}/icons/translateplace-symbolic.svg`),
+            style_class: 'system-status-icon',
+        }));
         this._buildMenu();
         Main.panel.addToStatusArea(this.uuid, this._indicator);
         const cancellable = this._cancellable;

@@ -5,7 +5,7 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 # Add only extension-specific runtime directories or files here.
-extra_sources=()
+extra_sources=(icons)
 # For existing projects, preserve the contents of the previous distribution ZIP.
 package_license=true
 package_compiled_schemas=false
