@@ -6,6 +6,8 @@ and optionally pastes the result over the selection.
 The interface is English, source detection is automatic, and two target languages
 can be configured with separate shortcuts.
 
+![TranslatePlace GNOME Shell extension overview](TranslatePlace.png)
+
 ![TranslatePlace preferences with two target languages and keyboard shortcuts, clipboard options, API address and compact history menu](screenshot.png)
 
 ## Features
@@ -102,25 +104,17 @@ address it started with.
 gnome-extensions prefs translateplace@digitalspace.name
 ```
 
-### Clipboard and history
+### Translation results and history
 
-Selection capture and pasting use **Ctrl + C** and **Ctrl + V** inside GNOME Shell.
-The shortcut is skipped when the window class matches a known terminal name,
-because Ctrl + C could interrupt a running command. This name check does not
-identify every terminal or embedded terminal. Editors must support those shortcuts and retain the selection; otherwise
-copy the translation from history manually.
+**Replace selected text** is enabled by default. Turn it off in Preferences to
+review translations in history before inserting them. Keep the editor focused
+and the text selection unchanged until translation finishes.
 
-Automatic paste occurs only while the same window remains active and the clipboard
-still contains the captured text. The extension cannot verify that the editor's
-selection or draft is unchanged; keep both unchanged until translation finishes.
-Sending Ctrl + V does not confirm that the application accepted the paste. The
-clipboard then contains the translation. Disable automatic paste in Preferences to review results
-before inserting them. Enable **Copy translation to clipboard** independently
-to keep the translated text ready for manual paste, including when automatic
-replacement is disabled. Clipboard copying is also skipped if the clipboard text
-has changed. Automatic replacement defaults to enabled; independent clipboard
-copying defaults to disabled. History is saved in every mode. Automatic replacement
-also uses the clipboard to paste on Wayland.
+**Copy translation to clipboard** is a separate option, disabled by default.
+Enable it to keep translations ready for manual pasting, even when automatic
+replacement is off. Automatic replacement also puts the translation on the
+clipboard. If replacement is skipped, the result remains available in history.
+Originals and completed translations are saved in every mode.
 
 History is stored in `$XDG_STATE_HOME/translateplace/history.json`, defaulting to
 `~/.local/state/translateplace/history.json`, with permissions 0600. It contains private selected text, including originals retained after API
