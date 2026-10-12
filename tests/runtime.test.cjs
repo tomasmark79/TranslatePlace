@@ -253,7 +253,10 @@ test('Delete history is hidden for empty history and requires confirmation', asy
     const context = vm.createContext({Extension: class {}, PopupMenu: {PopupMenuItem: MenuItem},
         DeleteHistoryDialog: class {
             constructor(count, action) {confirmation = {count, action};}
-            connect() {} open() {} destroy() {}
+            connect(_signal, callback) {this.onDestroy = callback; return 1;}
+            disconnect(id) {assert.equal(id, 1); this.onDestroy = null;}
+            open() {}
+            destroy() {this.onDestroy?.();}
         }, Main: {notify() {}}});
     const source = fs.readFileSync(path.join(__dirname, '../extension.js'), 'utf8')
         .replace(/^import .*;\n/gm, '').replace('export default class TranslatePlace', 'class TranslatePlace');
@@ -315,4 +318,26 @@ test('Delete confirmation separates Cancel from Delete all and supports Escape',
     confirm.buttons[1].action();
     assert.equal(deleted, 1);
     assert.equal(confirm.closed, true);
+});
+
+
+test('Disable disconnects the dialog before destroying it and destroys retained menu widgets', async () => {
+    const {instance} = lifecycleFixture(() => Promise.resolve());
+    instance.enable();
+    await instance._ready;
+    const events = [];
+    instance._detailDialogDestroyHandler = 42;
+    instance._detailDialog = {
+        disconnect(id) {assert.equal(id, 42); events.push('disconnect');},
+        destroy() {events.push('dialog');},
+    };
+    instance._deleteHistoryItem = {destroy() {events.push('menu item');}};
+    instance._shortcutLabel = {destroy() {events.push('label');}};
+    instance.disable();
+    assert.deepEqual(events, ['disconnect', 'dialog', 'menu item', 'label']);
+    assert.equal(instance._detailDialog, null);
+    assert.equal(instance._detailDialogDestroyHandler, 0);
+    assert.equal(instance._deleteHistoryItem, null);
+    assert.equal(instance._shortcutLabel, null);
+    instance._destroyDetailDialog(); // Already closed dialogs require no second disconnect.
 });

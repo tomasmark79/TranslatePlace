@@ -199,11 +199,13 @@ export default class TranslatePlace extends Extension {
             this._dialogSource = 0;
         }
         this._api.close();
-        this._detailDialog?.destroy();
+        this._destroyDetailDialog();
         this._detailDialog = null;
         this._historyScroll.remove_child(this._historySection.actor);
         this._historySection.destroy();
         this._historyScroll.destroy();
+        this._deleteHistoryItem?.destroy();
+        this._shortcutLabel?.destroy();
         this._indicator.destroy();
         this._historySection = null;
         this._historyScroll = null;
@@ -302,7 +304,7 @@ export default class TranslatePlace extends Extension {
     _confirmDeleteHistory() {
         if (!this._history.entries.length || this._clearingHistory)
             return;
-        this._detailDialog?.destroy();
+        this._destroyDetailDialog();
         const cancellable = this._cancellable;
         const dialog = new DeleteHistoryDialog(this._history.entries.length, () => {
             if (!cancellable.is_cancelled())
@@ -312,9 +314,11 @@ export default class TranslatePlace extends Extension {
                 });
         });
         this._detailDialog = dialog;
-        dialog.connect('destroy', () => {
-            if (this._detailDialog === dialog)
+        this._detailDialogDestroyHandler = dialog.connect('destroy', () => {
+            if (this._detailDialog === dialog) {
                 this._detailDialog = null;
+                this._detailDialogDestroyHandler = 0;
+            }
         });
         dialog.open();
     }
@@ -328,7 +332,7 @@ export default class TranslatePlace extends Extension {
             await this._ready;
             if (cancellable.is_cancelled())
                 return;
-            this._detailDialog?.destroy();
+            this._destroyDetailDialog();
             const saved = this._history.clear(this._settings.get_int('history-limit'), cancellable);
             this._updateMenu();
             await saved;
@@ -340,13 +344,24 @@ export default class TranslatePlace extends Extension {
         }
     }
 
+    _destroyDetailDialog() {
+        if (!this._detailDialog)
+            return;
+        this._detailDialog.disconnect(this._detailDialogDestroyHandler);
+        this._detailDialogDestroyHandler = 0;
+        this._detailDialog.destroy();
+        this._detailDialog = null;
+    }
+
     _showHistory(entry) {
-        this._detailDialog?.destroy();
+        this._destroyDetailDialog();
         const dialog = new HistoryDialog(entry);
         this._detailDialog = dialog;
-        dialog.connect('destroy', () => {
-            if (this._detailDialog === dialog)
+        this._detailDialogDestroyHandler = dialog.connect('destroy', () => {
+            if (this._detailDialog === dialog) {
                 this._detailDialog = null;
+                this._detailDialogDestroyHandler = 0;
+            }
         });
         dialog.open();
     }
