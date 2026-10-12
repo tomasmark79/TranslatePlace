@@ -6,9 +6,7 @@ and optionally pastes the result over the selection.
 The interface is English, source detection is automatic, and two target languages
 can be configured with separate shortcuts.
 
-![TranslatePlace GNOME Shell extension overview](TranslatePlace.png)
-
-![TranslatePlace preferences with two target languages and keyboard shortcuts, clipboard options, API address and compact history menu](screenshot.png)
+![TranslatePlace](translate-exam.gif)
 
 ## Features
 
