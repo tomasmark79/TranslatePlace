@@ -9,7 +9,8 @@ test('Selection capture cancels without deadlocking GIO and releases its signal'
     const source = fs.readFileSync(path.join(__dirname, '../extension.js'), 'utf8');
     const capture = source.slice(source.search(/(?:async )?function readFreshSelection\(/),
         source.indexOf('\nfunction shortText('));
-    const pause = source.slice(source.indexOf('function pause('), source.indexOf('\nfunction sendKey('));
+    const pause = fs.readFileSync(path.join(__dirname, '../async.js'), 'utf8')
+        .replace(/^import .*;\n/gm, '').replace('export async function', 'async function');
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'translateplace-selection-'));
     try {
         const script = path.join(directory, 'selection.js');

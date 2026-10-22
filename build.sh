@@ -105,6 +105,9 @@ translations=(po/*.po)
 for source in "${sources[@]}"; do
     node --input-type=module --check < "$source"
 done
+if command -v eslint >/dev/null; then
+    eslint -- "${sources[@]}"
+fi
 if (( ${#schemas[@]} )); then
     command -v glib-compile-schemas >/dev/null || { echo 'Missing glib-compile-schemas.' >&2; exit 1; }
     glib-compile-schemas --strict --dry-run schemas
@@ -119,7 +122,8 @@ gjs -m tests/protection.js >/dev/null
 echo 'Text protection tests passed.'
 GSETTINGS_BACKEND=memory gjs -m tests/settings.js
 gjs -m tests/api-settings.js
-node --test tests/runtime.test.cjs tests/selection.test.cjs tests/api-timeouts.test.cjs
+gjs -m tests/async.js
+node --test tests/runtime.test.cjs tests/selection.test.cjs tests/api-timeouts.test.cjs tests/output-safety.test.cjs
 (
     history_test_state=$(mktemp -d)
     trap 'rm -rf -- "$history_test_state"' EXIT

@@ -33,6 +33,8 @@ function lifecycleFixture(load) {
     instance._buildMenu = () => {
         instance._historyScroll = {remove_child() {}, destroy() {}};
         instance._historySection = {actor: {}, destroy() {}};
+        instance._deleteHistoryItem = {destroy() {}};
+        instance._shortcutLabel = {destroy() {}};
     };
     instance._updateMenu = () => {};
     return {instance, handlers, saves};
@@ -175,6 +177,8 @@ test('Both shortcuts select independent targets, retain the active job target an
     instance._buildMenu = () => {
         instance._historyScroll = {remove_child() {}, destroy() {}};
         instance._historySection = {actor: {}, destroy() {}};
+        instance._deleteHistoryItem = {destroy() {}};
+        instance._shortcutLabel = {destroy() {}};
     };
     instance._updateMenu = () => {};
     instance.enable();
@@ -321,7 +325,7 @@ test('Delete confirmation separates Cancel from Delete all and supports Escape',
 });
 
 
-test('Disable disconnects the dialog before destroying it and destroys retained menu widgets', async () => {
+test('Disable explicitly destroys retained widgets before their indicator', async () => {
     const {instance} = lifecycleFixture(() => Promise.resolve());
     instance.enable();
     await instance._ready;
@@ -333,8 +337,13 @@ test('Disable disconnects the dialog before destroying it and destroys retained 
     };
     instance._deleteHistoryItem = {destroy() {events.push('menu item');}};
     instance._shortcutLabel = {destroy() {events.push('label');}};
+    instance._indicator.destroy = () => {
+        assert.equal(instance._deleteHistoryItem, null);
+        assert.equal(instance._shortcutLabel, null);
+        events.push('indicator');
+    };
     instance.disable();
-    assert.deepEqual(events, ['disconnect', 'dialog', 'menu item', 'label']);
+    assert.deepEqual(events, ['disconnect', 'dialog', 'menu item', 'label', 'indicator']);
     assert.equal(instance._detailDialog, null);
     assert.equal(instance._detailDialogDestroyHandler, 0);
     assert.equal(instance._deleteHistoryItem, null);

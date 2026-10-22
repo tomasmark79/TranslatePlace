@@ -47,6 +47,9 @@ curl http://127.0.0.1:5001/health
 Build tools: Bash, Python 3, Node.js and GJS (syntax/regression checks),
 zip and `glib-compile-schemas`. Local installation also requires `gnome-extensions`.
 Building does not require a running translation server.
+If ESLint 9 or newer is installed, the build also checks runtime JavaScript using
+`eslint.config.mjs` for undefined names, unused variables, common logic errors and
+the EGO recommendation of at most 200 characters per line.
 
 The extension waits up to fifteen minutes per translation, including queue time.
 The HTTP session uses a twenty-second network timeout. A request already in
@@ -107,6 +110,10 @@ gnome-extensions prefs translateplace@digitalspace.name
 **Replace selected text** is enabled by default. Turn it off in Preferences to
 review translations in history before inserting them. Keep the editor focused
 and the text selection unchanged until translation finishes.
+Before replacement, the extension sends Ctrl+C again and compares the current
+selection with the original. A changed selection or window skips replacement.
+The application can still change its selection programmatically between this
+check and Ctrl+V; disable replacement when you need to review the destination.
 
 **Copy translation to clipboard** is a separate option, disabled by default.
 Enable it to keep translations ready for manual pasting, even when automatic
@@ -121,7 +128,8 @@ errors. Consider that content before sharing or backing up the file.
 HTTP/HTTPS URLs, emoji, fenced and inline code, HTML tags, Markdown links and
 selected Markdown markers are masked during translation. The model can still omit
 or move protected parts; history reports detected discrepancies. These warnings
-do not prevent automatic paste when it is enabled. The original remains available.
+prevent automatic copying and pasting. Open the history entry to review the result
+and copy it manually if appropriate. The original remains available.
 Formatting outside the text, such as WYSIWYG styles, may be lost when pasting plain text.
 
 ## Development
@@ -154,6 +162,14 @@ The translation server is maintained in the separate
 For runtime changes, check text replacement, automatic paste disabled, history,
 long-text dialogs, API errors and disable/enable during a pending translation in
 GNOME. Build checks alone do not verify clipboard behavior in the running session.
+
+### EGO review and maintainership
+
+Follow the [EGO Review Guidelines](https://gjs.guide/extensions/review-guidelines/review-guidelines.html)
+and [Best Practices](https://gjs.guide/extensions/review-guidelines/best-practices.html).
+Before submitting to extensions.gnome.org, the maintainer must read and understand
+the code and be able to debug and maintain it.
+A passing build does not establish maintainership or guarantee review approval.
 
 ## Troubleshooting
 

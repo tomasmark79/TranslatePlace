@@ -3,11 +3,12 @@
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import Soup from 'gi://Soup?version=3.0';
+import Soup from 'gi://Soup';
+import {DEFAULT_API_URL, normalizeApiUrl} from './api-settings.js';
+import {pause as delay} from './async.js';
 
 Gio._promisify(Soup.Session.prototype, 'send_and_read_async', 'send_and_read_finish');
 
-import {DEFAULT_API_URL, normalizeApiUrl} from './api-settings.js';
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 const TRANSLATION_TIMEOUT_US = 15 * 60 * 1000000;
@@ -54,25 +55,4 @@ export class TranslationApi {
     close() {
         this._session.abort();
     }
-}
-
-function delay(ms, cancellable) {
-    return new Promise((resolve, reject) => {
-        if (cancellable.is_cancelled()) {
-            reject(new Error('Cancelled'));
-            return;
-        }
-        let id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-            cancellable.disconnect(signal);
-            resolve();
-            return GLib.SOURCE_REMOVE;
-        });
-        const signal = cancellable.connect(() => {
-            if (id) {
-                GLib.Source.remove(id);
-                id = 0;
-                reject(new Error('Cancelled'));
-            }
-        });
-    });
 }

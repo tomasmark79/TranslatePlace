@@ -1,8 +1,18 @@
 // Copyright (C) 2026 Tomáš Mark
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Restore protected parts after translation and report discrepancies in history.
-const PROTECTED = /```[\s\S]*?```|`[^`\n]*`|!?(?:\[[^\]\n]*\]\([^\)\n]*\))|<[^>\n]+>|https?:\/\/[^\s<>]+|\*\*|__|~~|(?:^|\n)[ \t]*(?:[-*+] |\d+\. |>[ \t]*)|[\u{1F1E6}-\u{1F1FF}]{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*/gu;
+const PROTECTED = new RegExp([
+    /```[\s\S]*?```/.source,
+    /`[^`\n]*`/.source,
+    /!?(?:\[[^\]\n]*\]\([^\)\n]*\))/.source,
+    /<[^>\n]+>/.source,
+    /https?:\/\/[^\s<>]+/.source,
+    /\*\*|__|~~/.source,
+    /(?:^|\n)[ \t]*(?:[-*+] |\d+\. |>[ \t]*)/.source,
+    /[\u{1F1E6}-\u{1F1FF}]{2}/u.source,
+    /[0-9#*]\uFE0F?\u20E3/.source,
+    /\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*/u.source,
+].join('|'), 'gu');
 
 export function protectText(source) {
     const parts = [];

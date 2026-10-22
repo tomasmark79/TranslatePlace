@@ -1,5 +1,5 @@
 import Gio from 'gi://Gio';
-import Soup from 'gi://Soup?version=3.0';
+import Soup from 'gi://Soup';
 import {TranslationApi} from '../api.js';
 import {DEFAULT_API_URL, normalizeApiUrl} from '../api-settings.js';
 const assert = (condition, message) => { if (!condition) throw new Error(message); };

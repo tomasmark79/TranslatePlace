@@ -17,32 +17,11 @@ import {History} from './history.js';
 import {targetLanguage} from './languages.js';
 import {HistoryDialog, DeleteHistoryDialog} from './historyDialog.js';
 import {protectText, restoreText} from './protection.js';
+import {pause} from './async.js';
 
 const SHORTCUT = 'translate-shortcut';
 const SECONDARY_SHORTCUT = 'translate-secondary-shortcut';
 const COPY_WAIT_MS = 2500;
-
-function pause(ms, cancellable) {
-    return new Promise((resolve, reject) => {
-        if (cancellable.is_cancelled()) {
-            reject(new Error('Cancelled'));
-            return;
-        }
-        let source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-            cancellable.disconnect(signal);
-            source = 0;
-            resolve();
-            return GLib.SOURCE_REMOVE;
-        });
-        const signal = cancellable.connect(() => {
-            if (source) {
-                GLib.Source.remove(source);
-                source = 0;
-                reject(new Error('Cancelled'));
-            }
-        });
-    });
-}
 
 function sendKey(device, code, state) {
     device.notify_key(GLib.get_monotonic_time(), code, state);
@@ -204,14 +183,14 @@ export default class TranslatePlace extends Extension {
         this._historyScroll.remove_child(this._historySection.actor);
         this._historySection.destroy();
         this._historyScroll.destroy();
-        this._deleteHistoryItem?.destroy();
-        this._shortcutLabel?.destroy();
+        this._deleteHistoryItem.destroy();
+        this._deleteHistoryItem = null;
+        this._shortcutLabel.destroy();
+        this._shortcutLabel = null;
         this._indicator.destroy();
         this._historySection = null;
         this._historyScroll = null;
         this._indicator = null;
-        this._deleteHistoryItem = null;
-        this._shortcutLabel = null;
         this._shortcutHandlers = null;
         this._ready = null;
         this._loadError = null;
@@ -283,8 +262,9 @@ export default class TranslatePlace extends Extension {
             list.addMenuItem(empty);
         }
         for (const entry of this._history.entries) {
-            const item = new PopupMenu.PopupMenuItem(
-                `${entry.warning ? '⚠ ' : ''}${shortText(entry.original)}`);
+            const item = entry.warning
+                ? new PopupMenu.PopupImageMenuItem(shortText(entry.original), 'dialog-warning-symbolic')
+                : new PopupMenu.PopupMenuItem(shortText(entry.original));
             item.label.style = `max-width: ${width - 60}px;`;
             item.connect('activate', () => {
                 if (this._dialogSource)
@@ -304,7 +284,6 @@ export default class TranslatePlace extends Extension {
     _confirmDeleteHistory() {
         if (!this._history.entries.length || this._clearingHistory)
             return;
-        this._destroyDetailDialog();
         const cancellable = this._cancellable;
         const dialog = new DeleteHistoryDialog(this._history.entries.length, () => {
             if (!cancellable.is_cancelled())
@@ -313,14 +292,7 @@ export default class TranslatePlace extends Extension {
                         Main.notify('TranslatePlace', `Could not delete history: ${error.message}`);
                 });
         });
-        this._detailDialog = dialog;
-        this._detailDialogDestroyHandler = dialog.connect('destroy', () => {
-            if (this._detailDialog === dialog) {
-                this._detailDialog = null;
-                this._detailDialogDestroyHandler = 0;
-            }
-        });
-        dialog.open();
+        this._openDetailDialog(dialog);
     }
 
     async _clearHistory() {
@@ -354,8 +326,11 @@ export default class TranslatePlace extends Extension {
     }
 
     _showHistory(entry) {
+        this._openDetailDialog(new HistoryDialog(entry));
+    }
+
+    _openDetailDialog(dialog) {
         this._destroyDetailDialog();
-        const dialog = new HistoryDialog(entry);
         this._detailDialog = dialog;
         this._detailDialogDestroyHandler = dialog.connect('destroy', () => {
             if (this._detailDialog === dialog) {
@@ -399,6 +374,8 @@ export default class TranslatePlace extends Extension {
         const original = await readFreshSelection(this._device, cancellable);
         if (cancellable.is_cancelled())
             return;
+        if (global.display.focus_window !== window)
+            throw new Error('The active window changed while reading the selection. Try again.');
         if (original.length > 10000)
             throw new Error('The text exceeds the 10,000-character API limit.');
         const entry = {at: new Date().toISOString(), original, translated: '',
@@ -415,11 +392,15 @@ export default class TranslatePlace extends Extension {
             const restored = restoreText(raw, masked.parts);
             entry.translated = restored.text;
             entry.warning = restored.warning;
-            entry.status = 'Done';
+            entry.status = restored.warning ? 'Needs review' : 'Done';
             await this._history.save(this._settings.get_int('history-limit'), cancellable);
             if (cancellable.is_cancelled())
                 return;
             this._updateMenu();
+            if (entry.warning) {
+                Main.notify('TranslatePlace', 'Protected text changed. Review the translation in history before copying it.');
+                return;
+            }
             const autoPaste = this._settings.get_boolean('auto-paste');
             const copyToClipboard = this._settings.get_boolean('copy-to-clipboard');
             if (!autoPaste && !copyToClipboard) {
@@ -430,6 +411,15 @@ export default class TranslatePlace extends Extension {
                 throw new Error('The active window changed. The translation is saved in history.');
             if (await readClipboard(cancellable) !== original)
                 throw new Error('The clipboard changed. The translation is saved in history.');
+            if (autoPaste) {
+                await waitForShortcutRelease(cancellable);
+                if (global.display.focus_window !== window)
+                    throw new Error('The active window changed. The translation is saved in history.');
+                if (await readFreshSelection(this._device, cancellable) !== original)
+                    throw new Error('The selection changed. The translation is saved in history.');
+                if (global.display.focus_window !== window)
+                    throw new Error('The active window changed. The translation is saved in history.');
+            }
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, entry.translated);
             if (!autoPaste) {
                 entry.status = 'Copied to clipboard';
@@ -443,7 +433,11 @@ export default class TranslatePlace extends Extension {
             await pause(90, cancellable);
             if (global.display.focus_window !== window)
                 throw new Error('The active window changed. The translation is saved in history.');
-            controlKey(this._device, 47); // Ctrl+V; the application still holds the original selection.
+            if (await readClipboard(cancellable) !== entry.translated)
+                throw new Error('The clipboard changed. The translation is saved in history.');
+            if (global.display.focus_window !== window)
+                throw new Error('The active window changed. The translation is saved in history.');
+            controlKey(this._device, 47); // Ctrl+V
             entry.status = 'Paste sent';
             await this._history.save(this._settings.get_int('history-limit'), cancellable);
             if (!cancellable.is_cancelled())
