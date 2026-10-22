@@ -48,47 +48,44 @@ function readClipboard(cancellable) {
 async function readFreshSelection(device, cancellable) {
     if (cancellable.is_cancelled())
         throw new Error('Cancelled');
+    const selection = global.display.get_selection();
+    const retry = new Gio.Cancellable();
+    let handler = 0;
+    let timeout = 0;
     let cancelHandler = 0;
     try {
         return await new Promise((resolve, reject) => {
-            const selection = global.display.get_selection();
-            let done = false;
-            let timeout = 0;
-            const finish = (error, text) => {
-                if (done)
-                    return;
-                done = true;
-                selection.disconnect(handler);
-                if (timeout)
-                    GLib.Source.remove(timeout);
-                if (error)
-                    reject(error);
-                else
-                    resolve(text);
-            };
-            const handler = selection.connect('owner-changed', (_selection, type) => {
+            handler = selection.connect('owner-changed', (_selection, type) => {
                 if (type !== Meta.SelectionType.SELECTION_CLIPBOARD)
                     return;
+                selection.disconnect(handler);
+                handler = 0;
                 (async () => {
-                    for (let attempt = 0; attempt < 12 && !done; attempt++) {
-                        await pause(75, cancellable);
-                        const text = await readClipboard(cancellable);
+                    for (let attempt = 0; attempt < 12; attempt++) {
+                        await pause(75, retry);
+                        const text = await readClipboard(retry);
                         if (text) {
-                            finish(null, text);
+                            resolve(text);
                             return;
                         }
                     }
-                })().catch(error => finish(error));
+                    reject(new Error('Could not read the selected text.'));
+                })().catch(reject);
             });
-            cancelHandler = cancellable.connect(() => finish(new Error('Cancelled')));
+            cancelHandler = cancellable.connect(() => reject(new Error('Cancelled')));
             timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, COPY_WAIT_MS, () => {
                 timeout = 0;
-                finish(new Error('Could not read the selected text.'));
+                reject(new Error('Could not read the selected text.'));
                 return GLib.SOURCE_REMOVE;
             });
             controlKey(device, 46); // Ctrl+C
         });
     } finally {
+        retry.cancel();
+        if (handler)
+            selection.disconnect(handler);
+        if (timeout)
+            GLib.Source.remove(timeout);
         // Gio.Cancellable.disconnect() must run after the cancellation callback returns.
         if (cancelHandler)
             cancellable.disconnect(cancelHandler);
@@ -296,8 +293,6 @@ export default class TranslatePlace extends Extension {
     }
 
     async _clearHistory() {
-        if (this._clearingHistory)
-            return;
         const cancellable = this._cancellable;
         this._clearingHistory = true;
         try {
@@ -317,11 +312,9 @@ export default class TranslatePlace extends Extension {
     }
 
     _destroyDetailDialog() {
-        if (!this._detailDialog)
-            return;
-        this._detailDialog.disconnect(this._detailDialogDestroyHandler);
+        this._detailDialog?.disconnect(this._detailDialogDestroyHandler);
         this._detailDialogDestroyHandler = 0;
-        this._detailDialog.destroy();
+        this._detailDialog?.destroy();
         this._detailDialog = null;
     }
 

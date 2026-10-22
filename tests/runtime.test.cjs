@@ -348,5 +348,7 @@ test('Disable explicitly destroys retained widgets before their indicator', asyn
     assert.equal(instance._detailDialogDestroyHandler, 0);
     assert.equal(instance._deleteHistoryItem, null);
     assert.equal(instance._shortcutLabel, null);
+    instance._detailDialogDestroyHandler = 99;
     instance._destroyDetailDialog(); // Already closed dialogs require no second disconnect.
+    assert.equal(instance._detailDialogDestroyHandler, 0);
 });

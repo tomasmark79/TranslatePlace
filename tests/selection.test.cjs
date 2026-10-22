@@ -20,15 +20,20 @@ test('Selection capture cancels without deadlocking GIO and releases its signal'
             const assert = (condition, message) => { if (!condition) throw new Error(message); };
             let onOwnerChanged = null;
             let copies = 0;
+            let reads = 0;
+            let clipboardText = 'Selected text';
             const selection = {
                 connect(_signal, callback) { onOwnerChanged = callback; return 1; },
-                disconnect() { onOwnerChanged = null; },
+                disconnect() {
+                    assert(onOwnerChanged !== null, 'Selection signal disconnected twice');
+                    onOwnerChanged = null;
+                },
             };
             const global = {display: {get_selection: () => selection}};
             const Meta = {SelectionType: {SELECTION_CLIPBOARD: 1}};
             const COPY_WAIT_MS = 150;
             const controlKey = () => copies++;
-            const readClipboard = async () => 'Selected text';
+            const readClipboard = async () => { reads++; return clipboardText; };
             ${pause}
             ${capture}
             for (const duringRetry of [false, true]) {
@@ -54,6 +59,15 @@ test('Selection capture cancels without deadlocking GIO and releases its signal'
             try { await readFreshSelection(null, new Gio.Cancellable()); } catch (caught) { error = caught; }
             assert(error?.message === 'Could not read the selected text.', 'Timeout was not reported');
             assert(onOwnerChanged === null, 'Selection signal survived timeout');
+            clipboardText = '';
+            const retrying = readFreshSelection(null, new Gio.Cancellable());
+            onOwnerChanged(selection, 1);
+            error = null;
+            try { await retrying; } catch (caught) { error = caught; }
+            assert(error?.message === 'Could not read the selected text.', 'Retry timeout was not reported');
+            const readsAtTimeout = reads;
+            await pause(100, new Gio.Cancellable());
+            assert(reads === readsAtTimeout, 'Clipboard retries continued after timeout');
             print('Selection cancellation, success and timeout passed.');
         `);
         const result = spawnSync('gjs', ['-m', script], {encoding: 'utf8', timeout: 5000});
