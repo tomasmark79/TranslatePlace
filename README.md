@@ -21,8 +21,9 @@ can be configured with separate shortcuts.
 ## Requirements
 
 Declared GNOME Shell version: **50**, as listed in `metadata.json`.
-Runtime requires GJS, libsoup 3 and a running translation server; Preferences
-also require GTK 4 and libadwaita.
+Runtime requires GJS, libsoup 3 with its GObject introspection data (`Soup 3.0`)
+and a running translation server; Preferences also require GTK 4 and libadwaita.
+The introspection data is also needed by the build's regression tests.
 Use [Translation API](https://github.com/tomasmark79/translation-api), a separate
 server using Ollama. Follow its README to install the server and language model.
 
@@ -57,7 +58,19 @@ progress can extend beyond the overall polling deadline.
 
 ## Installation
 
-From the project directory:
+Install from [GNOME Extensions](https://extensions.gnome.org/extension/11231/translateplace/)
+or [download the latest GitHub build](https://github.com/tomasmark79/TranslatePlace/releases/download/github-build/translateplace%40digitalspace.name.zip).
+The GitHub ZIP is built automatically from `main` and may be newer than the version
+reviewed on GNOME Extensions. Its [release page](https://github.com/tomasmark79/TranslatePlace/releases/tag/github-build)
+lists the source commit, build date, declared Shell compatibility and SHA-256 checksums.
+
+Install the downloaded ZIP:
+
+```bash
+gnome-extensions install --force ~/Downloads/translateplace@digitalspace.name.zip
+```
+
+Or build and install from the project directory:
 
 ```bash
 ./build.sh --install
@@ -139,6 +152,12 @@ Formatting outside the text, such as WYSIWYG styles, may be lost when pasting pl
 ./build.sh
 ```
 
+Each push to `main` runs the same build and its regression tests in GitHub Actions.
+After all checks pass, it updates the **Latest GitHub build** release. The rolling
+`github-build` tag follows the published commit; the version in `metadata.json`
+is left unchanged. The workflow uses the built-in GitHub token and needs no
+additional secrets or running translation server.
+
 Both commands validate metadata, JavaScript and the XML schema and run regression
 tests for text protection, language settings, shortcuts, API addresses/timeouts,
 clipboard handling, extension lifecycle and history. The output is `dist/translateplace@digitalspace.name.zip`.
@@ -172,6 +191,28 @@ the code and be able to debug and maintain it.
 A passing build does not establish maintainership or guarantee review approval.
 
 ## Troubleshooting
+
+If the extension or build reports `Typelib file for namespace 'Soup' ... not found`,
+install the Soup 3 introspection package as well as the library. On Debian/Ubuntu:
+
+```bash
+sudo apt install gir1.2-soup-3.0
+```
+
+See the [Ubuntu package description](https://packages.ubuntu.com/noble/gir1.2-soup-3.0).
+Check that GJS can load it:
+
+```bash
+gjs -c 'imports.gi.versions.Soup = "3.0"; const Soup = imports.gi.Soup; print("Soup 3.0 is available");'
+```
+
+With Nix, run the build in an environment that exposes both GJS and Soup:
+
+```bash
+nix-shell -p gjs libsoup_3 gobject-introspection --run './build.sh'
+```
+
+After installing runtime dependencies, start a fresh GNOME session if needed.
 
 If the API cannot be reached, check your configured server's health endpoint and
 its process or service (for example, `translation-api.service` for a service deployment). If automatic paste is skipped, check window focus,
