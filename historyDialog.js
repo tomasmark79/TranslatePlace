@@ -27,7 +27,7 @@ class HistoryDialog extends ModalDialog.ModalDialog {
         const height = Math.max(160, Math.min(520, global.stage.height - 180));
         this.contentLayout.style = `width: ${width}px;`;
         this.contentLayout.add_child(new St.Label({text: 'Translation history', style: 'font-weight: bold;'}));
-        const box = new St.BoxLayout({vertical: true, style: 'padding: 8px;'});
+        const box = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style: 'padding: 8px;'});
         addText(box, 'Original text', entry.original, width);
         addText(box, 'Translation', entry.translated || entry.status, width);
         if (entry.warning)

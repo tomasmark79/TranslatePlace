@@ -120,8 +120,7 @@ export default class TranslatePlace extends Extension {
         this._loadError = null;
         this._busy = false;
         this._clearingHistory = false;
-        const backend = globalThis.global?.stage?.context?.get_backend?.() ?? Clutter.get_default_backend?.();
-        this._device = backend.get_default_seat().create_virtual_device(
+        this._device = global.stage.context.get_backend().get_default_seat().create_virtual_device(
             Clutter.InputDeviceType.KEYBOARD_DEVICE);
         this._indicator = new PanelMenu.Button(0.0, 'TranslatePlace');
         this._indicator.add_child(new St.Icon({
@@ -205,7 +204,7 @@ export default class TranslatePlace extends Extension {
         this._menuWidth = width;
         menu.actor.style = `width: ${width}px;`;
         const header = new PopupMenu.PopupBaseMenuItem({reactive: false, can_focus: false});
-        const heading = new St.BoxLayout({vertical: true, x_expand: true, style: 'spacing: 4px;'});
+        const heading = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true, style: 'spacing: 4px;'});
         heading.add_child(new St.Label({text: 'TranslatePlace', style: 'font-weight: 600;'}));
         this._shortcutLabel = new St.Label({opacity: 180,
             style: `font-size: 0.85em; width: ${width - 60}px;`});
