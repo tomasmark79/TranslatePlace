@@ -120,7 +120,8 @@ export default class TranslatePlace extends Extension {
         this._loadError = null;
         this._busy = false;
         this._clearingHistory = false;
-        this._device = Clutter.get_default_backend().get_default_seat().create_virtual_device(
+        const backend = globalThis.global?.stage?.context?.get_backend?.() ?? Clutter.get_default_backend?.();
+        this._device = backend.get_default_seat().create_virtual_device(
             Clutter.InputDeviceType.KEYBOARD_DEVICE);
         this._indicator = new PanelMenu.Button(0.0, 'TranslatePlace');
         this._indicator.add_child(new St.Icon({

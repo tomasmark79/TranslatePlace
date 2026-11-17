@@ -352,3 +352,36 @@ test('Disable explicitly destroys retained widgets before their indicator', asyn
     instance._destroyDetailDialog(); // Already closed dialogs require no second disconnect.
     assert.equal(instance._detailDialogDestroyHandler, 0);
 });
+
+test('Enable uses global.stage.context.get_backend when Clutter.get_default_backend is absent', () => {
+    const virtualDevice = {id: 'gnome-51-device'};
+    const settings = {
+        get_user_value: () => false, get_string: () => 'en', get_int: () => 50,
+        connect: () => 1, disconnect() {},
+    };
+    const context = vm.createContext({
+        Extension: class { getSettings() { return settings; } },
+        Gio: {icon_new_for_string: filename => filename, Cancellable: class { is_cancelled() { return false; } cancel() {} }},
+        Clutter: {InputDeviceType: {KEYBOARD_DEVICE: 1}},
+        global: {stage: {context: {get_backend: () => ({get_default_seat: () => ({create_virtual_device: () => virtualDevice})})}}},
+        TranslationApi: class { close() {} }, History: class { load() { return Promise.resolve(); } },
+        PanelMenu: {Button: class { add_child() {} destroy() {} }}, St: {Icon: class {}},
+        Main: {panel: {addToStatusArea() {}}, wm: {addKeybinding() {}, removeKeybinding() {}}},
+        Meta: {KeyBindingFlags: {NONE: 0}}, Shell: {ActionMode: {NORMAL: 1}}, log() {}, logError() {},
+    });
+    const languages = fs.readFileSync(path.join(__dirname, '../languages.js'), 'utf8').replaceAll('export ', '');
+    const extension = fs.readFileSync(path.join(__dirname, '../extension.js'), 'utf8')
+        .replace(/^import .*;\n/gm, '').replace('export default class TranslatePlace', 'class TranslatePlace');
+    vm.runInContext(languages + '\n' + extension + '\nglobalThis.TranslatePlace = TranslatePlace;', context);
+    const instance = new context.TranslatePlace();
+    instance._buildMenu = () => {
+        instance._historyScroll = {remove_child() {}, destroy() {}};
+        instance._historySection = {actor: {}, destroy() {}};
+        instance._deleteHistoryItem = {destroy() {}};
+        instance._shortcutLabel = {destroy() {}};
+    };
+    instance._updateMenu = () => {};
+    instance.enable();
+    assert.equal(instance._device, virtualDevice);
+    instance.disable();
+});
