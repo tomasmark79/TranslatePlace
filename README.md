@@ -20,7 +20,7 @@ can be configured with separate shortcuts.
 
 ## Requirements
 
-Declared GNOME Shell version: **50**, as listed in `metadata.json`.
+Declared GNOME Shell versions: **50, 51**, as listed in `metadata.json`.
 Runtime requires GJS, libsoup 3 with its GObject introspection data (`Soup 3.0`)
 and a running translation server; Preferences also require GTK 4 and libadwaita.
 The introspection data is also needed by the build's regression tests.

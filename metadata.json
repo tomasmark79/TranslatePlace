@@ -3,7 +3,8 @@
   "name": "TranslatePlace",
   "description": "Translates selected text through a configured API and optionally replaces the selection. Reads and writes the clipboard when a user-configured translation shortcut is used; sends selected text to the configured server and saves originals and translations in local history.\n\nRequires a separately installed translation server, such as Translation API (Ollama): https://github.com/tomasmark79/translation-api\nDefault API address: http://127.0.0.1:5001",
   "shell-version": [
-    "50"
+    "50",
+    "51"
   ],
   "url": "https://github.com/tomasmark79/TranslatePlace",
   "settings-schema": "org.gnome.shell.extensions.translateplace",
